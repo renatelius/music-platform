@@ -7,6 +7,7 @@
 
 ### Изменено
 - Аккаунт: «Выйти» у устройства и «Выйти на всех устройствах» теперь спрашивают подтверждение прямо в карточке, без всплывающего окна. Фокус сразу на «Отмена», Escape закрывает вопрос, текст вопроса связан с кнопками через `aria-describedby`. Новые строки en/ru: `common.cancel`, `account.sessions.revokeQuestion`, `account.danger.confirmText`, `account.danger.confirm`.
+- CI: `pnpm/action-setup@v4` → `@v6`. v4 работал на устаревшем Node 20, и GitHub выдавал предупреждение; v6 работает на Node 24 и поддерживает pnpm 12.
 
 ### Исправлено
 - `apps/api/scripts/dev.mjs`: в режиме разработки API перезапускался при каждой загрузке страницы веба. `node --watch-path=dist` на Windows реагировал на файлы вне `dist` (лог Next.js `.next/dev/logs`, `turbo.exe`), из-за чего запросы к API обрывались (`ECONNRESET`/`ECONNREFUSED`, «Сервис временно недоступен»). Теперь API перезапускается только после успешной сборки `tsc --watch` (`Found 0 errors`).
