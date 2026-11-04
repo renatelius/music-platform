@@ -130,3 +130,17 @@
 - ESLint 10 flat config со `strictTypeChecked`, Prettier, `.gitattributes` (LF, кроме .bat/.ps1).
 - CI (GitHub Actions): `format:check` + `lint/typecheck/test/build` и отдельная проверка, что инфраструктура поднимается.
 - Инструменты разработчика собраны в `B:\develop` (решение заказчика): Node.js, npm-global (pnpm), pnpm-store, Git, Rust (`CARGO_HOME`/`RUSTUP_HOME`), FFmpeg, данные Docker. Вне папки остаются Docker Desktop (программа), WSL, Python 3.14 (общий для других проектов) и, по выбору, VS Build Tools.
+
+## ADR-014 — Каркас API (итерация I2a)
+**Статус:** Принято · 2026-11-04
+
+**Решение.**
+- **NestJS 12.3, ESM** (`"type": "module"`, NodeNext). Express-адаптер. Сборка — `tsc` (не Nest CLI): меньше зависимостей, тот же результат.
+- **Конфигурация** — zod-схема переменных окружения (`src/config/env.ts`); приложение не стартует с неверным `.env`, в ошибке — имя переменной без значения.
+- **Ошибки** — единый `ProblemExceptionFilter` → RFC 9457 из `@mp/contracts`; детали 5xx не раскрываются; query-строки не попадают в ответы и логи.
+- **Логи** — встроенный `ConsoleLogger` NestJS (JSON-режим в проде, структурные параметры с v12) вместо pino: на этом этапе этого достаточно, без лишней зависимости.
+- **Rate limit** — свой фиксированный счётчик окна в Redis (общий для всех инстансов). Глобальный лимит по IP fail-open; для auth в I2b — fail-closed.
+- **Redis-клиент — ioredis 5.x**, а не только что вышедший 6.0: у 6.0 пока нет опубликованного описания изменений. Пересмотреть позже.
+- **Интеграционные тесты запускают скомпилированный `dist/`**: Vitest-трансформер не генерирует decorator metadata, на которых основан DI NestJS, а `tsc` генерирует. Поэтому `test` в `apps/api` зависит от `build` (turbo), тесты идут на реальных Postgres/Redis/S3 из Docker и только на БД с именем `*_test` (защита от случайного запуска на рабочей БД).
+- **Миграции** — схема Drizzle (`src/db/schema.ts`) — источник правды; SQL генерирует `drizzle-kit generate`, файлы коммитятся; CI проверяет, что миграции совпадают со схемой. Первичные ключи — UUID v7 (`uuidv7()` в PostgreSQL 18).
+- **Расширения PostgreSQL** (`citext`, `pg_trgm`, `vector`, `unaccent`) создаются при подготовке БД (init-скрипт Docker, в проде — при провижининге), а не миграциями.

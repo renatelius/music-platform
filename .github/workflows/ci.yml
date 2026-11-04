@@ -24,21 +24,22 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm format:check
-      - run: pnpm check
-
-  infrastructure:
-    name: Local infrastructure boots
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
       - run: cp .env.example .env
-      - run: docker compose -f infrastructure/docker/compose.yaml --env-file .env up -d --wait --wait-timeout 180
-      - run: docker compose -f infrastructure/docker/compose.yaml --env-file .env --profile init run --rm s3-init
+      - name: Start infrastructure
+        run: |
+          docker compose -f infrastructure/docker/compose.yaml --env-file .env up -d --quiet-pull --wait --wait-timeout 180
+          docker compose -f infrastructure/docker/compose.yaml --env-file .env --profile init run --rm --quiet-pull s3-init
       - name: Check PostgreSQL extensions
         run: |
           docker compose -f infrastructure/docker/compose.yaml --env-file .env exec -T postgres \
             psql -U mp -d mp_test -At -c "select count(*) from pg_extension where extname in ('vector','pg_trgm','citext','unaccent')" \
             | grep -qx 4
+      - run: pnpm format:check
+      - name: Migrations match the schema
+        run: |
+          pnpm db:generate
+          git status --porcelain apps/api/drizzle
+          test -z "$(git status --porcelain apps/api/drizzle)"
+      - run: pnpm check
       - if: always()
         run: docker compose -f infrastructure/docker/compose.yaml --env-file .env down -v

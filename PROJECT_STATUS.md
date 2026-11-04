@@ -4,7 +4,7 @@
 
 **Дата:** 2026-11-04
 **Фаза:** 1 — Foundation
-**Текущая итерация:** I1 «Каркас монорепо» — ✅ проверено на ПК (`setup.bat`: 14/14 PASS); осталось: первый push на GitHub
+**Текущая итерация:** I2a «Каркас API» — ✅ проверено на ПК (17/17 PASS, 47 тестов); осталось: push + CI. I1 ✅ закрыта.
 
 ## Сделано
 - ТЗ v1 и v2 (`BRIEF.md`, `BRIEF_v2.md`); исследование (`docs/RESEARCH.md`); архитектура и план утверждены заказчиком.
@@ -16,10 +16,16 @@
 - [x] `pnpm install` без ошибок, lock-файл создан
 - [x] Все 4 сервиса healthy (PostgreSQL 18.6, pgvector 0.8.7, Redis, SeaweedFS, Mailpit 1.33), бакеты созданы, расширения в `mp` и `mp_test`
 - [x] `pnpm check` зелёный: 22 unit-теста, lint, typecheck, build
-- [ ] Первый push на GitHub, CI зелёный
+- [x] Первый push на GitHub (https://github.com/renatelius/music-platform), CI зелёный
+
+## I2a — критерии готовности
+- [x] `pnpm db:generate` создал первую миграцию `0000_strange_prism.sql` (users, sessions, email_tokens, audit_events)
+- [x] `pnpm check` зелёный: 25 тестов API (unit + интеграционные на реальных Postgres/Redis/S3) + 22 контрактов
+- [x] Миграции применены к dev-БД, API отвечает на `GET /health` со статусом ok
+- [ ] CI зелёный (включая проверку «миграции совпадают со схемой»)
 
 ## Следующее
-I2 — API: NestJS 12, конфиг, health, ошибки, логи, rate limit, схема БД (Drizzle), auth.
+I2b — auth: регистрация, подтверждение email (Mailpit), вход, refresh-ротация, выход, сброс пароля, аудит, строгий rate limit.
 
 ## Ждёт решения заказчика
 - Рабочее название проекта (пока `[PROJECT NAME]`, npm-scope `@mp`).

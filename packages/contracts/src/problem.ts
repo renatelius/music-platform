@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 /** Machine-readable error codes. Clients branch on `code`, never on `title` text. */
 export const ErrorCode = z.enum([
+  'BAD_REQUEST',
   'VALIDATION_FAILED',
   'UNAUTHENTICATED',
   'FORBIDDEN',
@@ -37,6 +38,7 @@ export const ProblemDetails = z.object({
 export type ProblemDetails = z.infer<typeof ProblemDetails>;
 
 const STATUS_BY_CODE: Record<ErrorCode, number> = {
+  BAD_REQUEST: 400,
   VALIDATION_FAILED: 422,
   UNAUTHENTICATED: 401,
   FORBIDDEN: 403,
@@ -50,6 +52,7 @@ const STATUS_BY_CODE: Record<ErrorCode, number> = {
 };
 
 const TITLE_BY_CODE: Record<ErrorCode, string> = {
+  BAD_REQUEST: 'Malformed request',
   VALIDATION_FAILED: 'Request validation failed',
   UNAUTHENTICATED: 'Authentication required',
   FORBIDDEN: 'Access denied',

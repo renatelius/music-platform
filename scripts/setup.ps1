@@ -110,8 +110,35 @@ Run-Step 'Mailpit API' {
   $r.Content
 }
 
+Run-Step 'Generate DB migrations from schema (drizzle-kit)' { & pnpm db:generate }
 Run-Step 'Format code (prettier --write)' { & pnpm format }
 Run-Step 'Lint + typecheck + test + build' { & pnpm check }
+Run-Step 'Migrate development database' { & pnpm db:migrate }
+
+$apiPort = if ($envMap['API_PORT']) { $envMap['API_PORT'] } else { '4000' }
+Run-Step "API smoke test (GET http://127.0.0.1:$apiPort/health)" {
+  $apiDir = Join-Path $root 'apps\api'
+  $out = Join-Path $env:TEMP 'mp-api-smoke.out.txt'
+  $err = Join-Path $env:TEMP 'mp-api-smoke.err.txt'
+  $proc = Start-Process -FilePath 'node' -ArgumentList @('--env-file-if-exists=../../.env', 'dist/main.js') `
+    -WorkingDirectory $apiDir -PassThru -WindowStyle Hidden -RedirectStandardOutput $out -RedirectStandardError $err
+  $body = $null
+  try {
+    for ($i = 0; $i -lt 40 -and -not $body; $i++) {
+      Start-Sleep -Milliseconds 500
+      if ($proc.HasExited) { break }
+      try { $body = (Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$apiPort/health" -TimeoutSec 5 -ErrorAction Stop).Content } catch {}
+    }
+  } finally {
+    if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+  }
+  if ($body) { $body } else {
+    'API did not answer. Server output:'
+    if (Test-Path $out) { Get-Content $out -Tail 30 }
+    if (Test-Path $err) { Get-Content $err -Tail 30 }
+    $global:LASTEXITCODE = 1
+  }
+}
 
 Save-Report
 $failed = @($results | Where-Object { $_.Status -eq 'FAIL' }).Count

@@ -31,7 +31,10 @@
 
 | Команда | Что делает |
 |---|---|
-| `pnpm check` | lint + typecheck + test + build всех пакетов |
+| `pnpm check` | lint + typecheck + test + build всех пакетов (тесты API используют Docker-инфраструктуру) |
+| `pnpm dev:api` | API в режиме разработки: http://127.0.0.1:4000 (`/health`, `/health/live`) |
+| `pnpm db:generate` | создать SQL-миграцию из `apps/api/src/db/schema.ts` |
+| `pnpm db:migrate` | применить миграции к dev-БД |
 | `pnpm test` | unit-тесты |
 | `pnpm format` | форматирование (Prettier) |
 | `push-to-github.bat "сообщение"` | commit + push |
@@ -39,7 +42,11 @@
 ## Структура
 
 ```
-apps/          приложения (api, worker, web, desktop, mobile, ...) — появляются по итерациям
+apps/
+  api/         backend на NestJS 12 (модульный монолит)
+    src/       config, common (ошибки, rate limit, request id, логи), infra, db, health
+    drizzle/   SQL-миграции (генерируются, коммитятся)
+    test/      интеграционные тесты
 packages/
   config/      общие пресеты TypeScript
   contracts/   схемы API и общие доменные правила (zod)

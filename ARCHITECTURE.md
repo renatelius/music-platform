@@ -121,7 +121,7 @@ music-platform/
 | `admin` | модерация, жалобы, RBAC | 4 |
 | `billing` | тарифы, подписки, вебхуки платёжных провайдеров | 6 |
 
-Сквозное: конфиг с валидацией, структурные логи (pino) с request-id, глобальный обработчик ошибок (RFC 9457 Problem Details), rate limiting (Redis), health/readiness, OpenAPI на `/docs`.
+Реализовано в I2a: `config`, `common`, `infra`, `db`, `health` (ADR-014). Сквозное: конфиг с валидацией, структурные логи (pino) с request-id, глобальный обработчик ошибок (RFC 9457 Problem Details), rate limiting (Redis), health/readiness, OpenAPI на `/docs`.
 
 ---
 

@@ -5,11 +5,44 @@
 
 ## [Unreleased]
 
+## [0.2.0-i2a] — 2026-11-04 — Итерация I2a: каркас API
+
+### Добавлено
+- `apps/api` — backend на **NestJS 12.3** (ESM, Express), модульный монолит:
+  - `config/env.ts` — проверка переменных окружения zod-схемой; понятная ошибка без утечки значений.
+  - `common/` — RFC 9457 ошибки (`ProblemExceptionFilter`, `ApiError`, `ZodValidationPipe`), X-Request-Id (принимается от прокси или генерируется), лог каждого запроса без query-строк, глобальный rate limit по IP в Redis с заголовками `RateLimit-*` и `Retry-After`.
+  - `infra/` — клиенты PostgreSQL (pg + Drizzle), Redis (ioredis), S3 (AWS SDK v3); корректное закрытие соединений.
+  - `health/` — `GET /health/live` (процесс жив) и `GET /health` (Postgres, Redis, S3 с таймаутами; 503 при отказе критичной зависимости).
+  - Безопасность: helmet-заголовки, CORS только для разрешённых источников, без `X-Powered-By`.
+  - `db/schema.ts` — первая схема: `users` (email citext уникальный, argon2-хэш, статус, язык), `sessions` (refresh-токены по хэшу, семейства ротации), `email_tokens` (подтверждение email / сброс пароля), `audit_events`; UUID v7 ключи.
+  - `db/migrate.ts`, `db/migrate-cli.ts`, `drizzle.config.ts` — генерация и применение миграций.
+  - Тесты: unit (конфиг, request id, маппинг ошибок, валидация, rate limiter на реальном Redis) и интеграционные (health, 503 при падении Redis, 404 в формате Problem Details, request id, security-заголовки, CORS, 429, UUID v7 и уникальность email без учёта регистра в БД).
+- Корневые команды `pnpm dev:api`, `pnpm db:generate`, `pnpm db:migrate`.
+- ADR-014 — решения по каркасу API.
+
+### Изменено
+- `@mp/contracts` — код ошибки `BAD_REQUEST` (400, некорректный запрос) отдельно от `VALIDATION_FAILED` (422).
+- `eslint.config.mjs` — разрешены декорированные классы без экземплярных членов (модули NestJS).
+- `.prettierignore` — сгенерированные миграции не форматируются.
+- `.env.example` — описаны настройки API (у всех есть значения по умолчанию).
+- CI — одно задание: инфраструктура → format check → **проверка, что миграции совпадают со схемой** → lint/typecheck/test/build.
+- `scripts/setup.ps1` — шаги: генерация миграций, миграция dev-БД, smoke-тест `GET /health` запущенного API.
+- `ROADMAP.md` (I2 разбита на I2a/I2b), `PROJECT_STATUS.md`, `README.md`.
+
+### Исправлено
+- `apps/api/src/bootstrap.ts` — ошибка сборки TS2322: список CORS-источников из конфига (readonly) передаётся копией.
+- Сборка (`tsconfig.build.json` в `api` и `contracts`) — `noEmitOnError`: при ошибке типов `dist/` не обновляется, чтобы smoke-тест не запускал устаревший код.
+
+### Статус
+- Первый прогон `setup.bat`: 16/17 PASS. Сгенерирована миграция `0000_strange_prism.sql` (4 таблицы, UUID v7), применена к dev-БД, `GET /health` → ok (Postgres 22 мс, Redis 9 мс, S3 17 мс). Упала сборка API (исправлено выше).
+- Повторный прогон: **17/17 PASS**. 47 тестов зелёные (contracts 22, api 25 — из них интеграционные на реальных Postgres/Redis/S3), lint и typecheck чистые, миграции совпадают со схемой. Код I2a проверен на ПК; осталось — push и зелёный CI.
+
 ### Изменено
 - `push-to-github.bat` — подсказка, как вставить ссылку (правый клик / Ctrl+V); проверка, что это ссылка на GitHub, с повторным вводом вместо выхода.
 
 ### Состояние
-- Git-репозиторий проекта инициализирован (`git init`, ветка `main`); remote `origin` → https://github.com/renatelius/music-platform.git. Первый push — ожидается.
+- Git-репозиторий проекта инициализирован (`git init`, ветка `main`); remote `origin` → https://github.com/renatelius/music-platform.git.
+- Первый push (коммит `9a931e2`) выполнен; CI на GitHub Actions — оба задания зелёные: «Lint, typecheck, test, build» и «Local infrastructure boots». **Итерация I1 закрыта.**
 
 ## [0.1.2] — 2026-11-04 — Инструменты перенесены в B:\develop
 

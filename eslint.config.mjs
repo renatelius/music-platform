@@ -27,6 +27,12 @@ export default defineConfig(
     },
   },
   {
+    rules: {
+      // NestJS modules are decorated classes without instance members.
+      '@typescript-eslint/no-extraneous-class': ['error', { allowWithDecorator: true }],
+    },
+  },
+  {
     files: ['**/*.{js,mjs,cjs}'],
     extends: [tseslint.configs.disableTypeChecked],
   },
