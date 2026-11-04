@@ -54,6 +54,14 @@ const EnvSchema = z.object({
   /** FFmpeg binaries for the audio pipeline; looked up on PATH by default. */
   FFMPEG_PATH: z.string().min(1).default('ffmpeg'),
   FFPROBE_PATH: z.string().min(1).default('ffprobe'),
+  /** Worker (ADR-017). */
+  WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(2),
+  QUEUE_PREFIX: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]+$/, 'letters, digits, - and _ only')
+    .default('mp'),
+  /** Shorter files are rejected (jingles, broken uploads). */
+  INGEST_MIN_DURATION_SEC: z.coerce.number().int().min(1).max(600).default(30),
 });
 
 /** Placeholder secrets from .env.example must never reach production. */
@@ -108,6 +116,11 @@ export interface AppConfig {
     readonly from: string;
   };
   readonly media: { readonly ffmpegPath: string; readonly ffprobePath: string };
+  readonly worker: {
+    readonly concurrency: number;
+    readonly queuePrefix: string;
+    readonly minDurationMs: number;
+  };
 }
 
 export class ConfigError extends Error {
@@ -176,6 +189,11 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): A
       from: e.MAIL_FROM,
     },
     media: { ffmpegPath: e.FFMPEG_PATH, ffprobePath: e.FFPROBE_PATH },
+    worker: {
+      concurrency: e.WORKER_CONCURRENCY,
+      queuePrefix: e.QUEUE_PREFIX,
+      minDurationMs: e.INGEST_MIN_DURATION_SEC * 1000,
+    },
   };
 }
 

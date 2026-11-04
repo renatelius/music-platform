@@ -1,6 +1,7 @@
-// Dev mode: recompile on change (tsc keeps decorator metadata) and restart the server.
+// Dev mode: recompile on change (tsc keeps decorator metadata) and restart the API and the
+// worker (ADR-017: two processes from the same build).
 //
-// The server is restarted only after tsc reports a successful compilation. We do not use
+// Processes are restarted only after tsc reports a successful compilation. We do not use
 // `node --watch-path=dist`: on Windows it also reacted to files outside dist (the Next.js
 // dev log, turbo.exe in node_modules), so every page load in the web app restarted the API.
 import { spawn } from 'node:child_process';
@@ -9,42 +10,52 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const tscBin = require.resolve('typescript/bin/tsc');
 
-const SERVER_ARGS = ['--env-file-if-exists=../../.env', 'dist/main.js'];
+const ENV_ARG = '--env-file-if-exists=../../.env';
 // tsc prints this after every compilation in watch mode, e.g. "Found 0 errors. Watching for file changes."
 const COMPILED = /Found (\d+) errors?\b/;
 
-let server = null;
 let stopping = false;
-let restartQueued = false;
 let initialBuildSeen = false;
 
-function startServer() {
-  server = spawn(process.execPath, SERVER_ARGS, { stdio: 'inherit' });
-  server.on('exit', (code, signal) => {
-    server = null;
-    if (stopping) return;
-    if (restartQueued) {
-      restartQueued = false;
-      startServer();
-      return;
-    }
-    if (signal === null && code !== 0) {
-      console.error(
-        `[dev] API exited with code ${String(code)}; waiting for the next successful build.`,
-      );
-    }
-  });
+/** A node process that is (re)started from dist/ after each successful build. */
+function managed(name, entry) {
+  const state = { child: null, restartQueued: false };
+
+  const start = () => {
+    state.child = spawn(process.execPath, [ENV_ARG, entry], { stdio: 'inherit' });
+    state.child.on('exit', (code, signal) => {
+      state.child = null;
+      if (stopping) return;
+      if (state.restartQueued) {
+        state.restartQueued = false;
+        start();
+        return;
+      }
+      if (signal === null && code !== 0) {
+        console.error(
+          `[dev] ${name} exited with code ${String(code)}; waiting for the next successful build.`,
+        );
+      }
+    });
+  };
+
+  return {
+    start,
+    restart() {
+      if (state.child === null) {
+        start();
+        return;
+      }
+      state.restartQueued = true;
+      state.child.kill();
+    },
+    stop() {
+      state.child?.kill();
+    },
+  };
 }
 
-function restartServer() {
-  if (server === null) {
-    startServer();
-    return;
-  }
-  console.log('[dev] Build succeeded, restarting API...');
-  restartQueued = true;
-  server.kill();
-}
+const processes = [managed('API', 'dist/main.js'), managed('worker', 'dist/worker/main.js')];
 
 const tsc = spawn(
   process.execPath,
@@ -67,14 +78,17 @@ tsc.stdout.on('data', (chunk) => {
       initialBuildSeen = true;
       continue;
     }
-    if (match[1] === '0') restartServer();
+    if (match[1] === '0') {
+      console.log('[dev] Build succeeded, restarting API and worker...');
+      for (const p of processes) p.restart();
+    }
   }
 });
 
 const stop = () => {
   stopping = true;
   tsc.kill();
-  server?.kill();
+  for (const p of processes) p.stop();
 };
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);
@@ -85,4 +99,4 @@ tsc.on('exit', (code) => {
   }
 });
 
-startServer();
+for (const p of processes) p.start();

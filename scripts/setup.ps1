@@ -141,6 +141,7 @@ Run-Step 'Generate DB migrations from schema (drizzle-kit)' { & pnpm db:generate
 Run-Step 'Format code (prettier --write)' { & pnpm format }
 Run-Step 'Lint + typecheck + test + build' { & pnpm check }
 Run-Step 'Migrate development database' { & pnpm db:migrate }
+Run-Step 'Audio pipeline smoke test (synthetic file -> renditions in S3)' { & pnpm --filter @mp/api worker:smoke }
 
 # Smoke tests start their own servers. If dev.bat is running, the ports are taken and the
 # requests would reach the dev servers instead, so a passing result would prove nothing.

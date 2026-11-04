@@ -15,6 +15,13 @@
       "when": 1793830185842,
       "tag": "0001_amusing_annihilus",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793833175704,
+      "tag": "0002_soft_tomas",
+      "breakpoints": true
     }
   ]
 }

@@ -316,8 +316,9 @@ export const trackAssets = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
+    // A Hi-Res master has two FLACs (original and 16-bit): resolution is part of the key.
     unique('track_assets_track_format_unique')
-      .on(t.trackId, t.codec, t.bitrateKbps)
+      .on(t.trackId, t.codec, t.bitrateKbps, t.sampleRateHz, t.bitDepth)
       .nullsNotDistinct(),
   ],
 );

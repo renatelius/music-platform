@@ -32,6 +32,7 @@ allowBuilds:
   esbuild: true
   sharp: true
   '@tailwindcss/oxide': true
+  msgpackr-extract: set this to true or false
 
 # Fresh releases we adopted before pnpm's minimum release age (reviewed manually).
 minimumReleaseAgeExclude:

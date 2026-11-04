@@ -1,0 +1,2 @@
+ALTER TABLE "track_assets" DROP CONSTRAINT "track_assets_track_format_unique";--> statement-breakpoint
+ALTER TABLE "track_assets" ADD CONSTRAINT "track_assets_track_format_unique" UNIQUE NULLS NOT DISTINCT("track_id","codec","bitrate_kbps","sample_rate_hz","bit_depth");
