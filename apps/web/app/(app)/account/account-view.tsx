@@ -235,7 +235,10 @@ function SessionsCard() {
               .join(' · ');
             const confirm = confirming === s.id;
             return (
-              <li key={s.id} className="flex items-center gap-4 py-3.5 first:pt-0 last:pb-0">
+              <li
+                key={s.id}
+                className="flex flex-wrap items-center gap-x-4 gap-y-3 py-3.5 first:pt-0 last:pb-0"
+              >
                 <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-surface text-fg-muted">
                   <Icon className="size-5" />
                 </span>
@@ -255,8 +258,9 @@ function SessionsCard() {
                   )}
                 </div>
                 {s.current ? null : confirm ? (
+                  // On phones the buttons move to their own row so the device name stays readable.
                   <div
-                    className="flex shrink-0 items-center gap-2"
+                    className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto"
                     onKeyDown={cancelOnEscape(() => {
                       if (busy === null) setConfirming(null);
                     })}
@@ -373,7 +377,7 @@ export function AccountView() {
         {t('account.title')}
       </h1>
       <p className="mt-2 text-fg-muted">{t('account.subtitle')}</p>
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
+      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <ProfileCard />
         <div className="flex flex-col gap-6">
           <AppearanceCard />

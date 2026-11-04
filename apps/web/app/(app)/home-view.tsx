@@ -74,7 +74,7 @@ export function HomeView() {
 
       {user.emailVerified ? null : <VerifyEmailBanner email={user.email} />}
 
-      <section className="mt-8 grid gap-4 md:grid-cols-2">
+      <section className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card>
           <h2 className="text-lg font-semibold tracking-tight text-fg">{t('home.ready.title')}</h2>
           <ul className="mt-4 flex flex-col gap-3">
