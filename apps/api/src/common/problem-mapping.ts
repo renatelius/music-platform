@@ -25,7 +25,12 @@ export interface ProblemContext {
 /** Maps any thrown value to Problem Details. Internal error details are never exposed. */
 export function toProblem(exception: unknown, context: ProblemContext): ProblemDetails {
   if (exception instanceof ApiError) {
-    return createProblem(exception.code, { ...exception.options, ...context });
+    const { detail, errors } = exception.options;
+    return createProblem(exception.code, {
+      ...(detail !== undefined ? { detail } : {}),
+      ...(errors !== undefined ? { errors } : {}),
+      ...context,
+    });
   }
   if (exception instanceof HttpException) {
     const status = exception.getStatus();

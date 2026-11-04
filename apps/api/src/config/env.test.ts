@@ -10,6 +10,7 @@ const minimal = {
   S3_SECRET_ACCESS_KEY: 'secret',
   S3_BUCKET_MEDIA: 'media',
   S3_BUCKET_MASTERS: 'masters',
+  AUTH_JWT_SECRET: 'test-secret-0123456789-0123456789-abcdef',
 };
 
 describe('loadConfig', () => {
@@ -40,6 +41,22 @@ describe('loadConfig', () => {
     expect(run).toThrow(ConfigError);
     expect(run).toThrow(/DATABASE_URL/);
     expect(run).not.toThrow(/secret-password/);
+  });
+
+  it('derives auth and mail settings', () => {
+    const config = loadConfig({ ...minimal, WEB_APP_URL: 'https://app.example/' });
+    expect(config.webAppUrl).toBe('https://app.example');
+    expect(config.auth.accessTtlSec).toBe(900);
+    expect(config.auth.cookieSecure).toBe(false);
+    expect(loadConfig({ ...minimal, NODE_ENV: 'production' }).auth.cookieSecure).toBe(true);
+    expect(config.mail).toMatchObject({ host: '127.0.0.1', port: 1025, secure: false });
+  });
+
+  it('rejects short JWT secrets and placeholders in production', () => {
+    expect(() => loadConfig({ ...minimal, AUTH_JWT_SECRET: 'short' })).toThrow(/AUTH_JWT_SECRET/);
+    const placeholder = { ...minimal, AUTH_JWT_SECRET: 'dev_only_jwt_secret_change_me_0123456789' };
+    expect(() => loadConfig(placeholder)).not.toThrow();
+    expect(() => loadConfig({ ...placeholder, NODE_ENV: 'production' })).toThrow(/placeholder/);
   });
 
   it('reports missing required variables', () => {

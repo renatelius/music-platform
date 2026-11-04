@@ -193,7 +193,7 @@ artists ── release_artists ── releases (album | single | ep | compilatio
 
 ## 8. Безопасность (Phase 1 — базовая, Phase 7 — аудит)
 
-- Пароли: **argon2id**. Access-токен JWT 15 мин; refresh-токен — случайный, хранится **только хэш**, ротация с обнаружением повторного использования (кража → отзыв всей цепочки).
+- Пароли: **argon2id** (встроенный `crypto.argon2`, ADR-015). Access-токен JWT 15 мин; refresh-токен — случайный, хранится **только хэш**, ротация с обнаружением повторного использования (кража → отзыв всей цепочки).
 - Хранение токенов: Web — `httpOnly; Secure; SameSite=Lax` cookie + CSRF-защита; Windows — системное хранилище (Credential Manager через Tauri); мобильные — Keychain/Keystore (expo-secure-store).
 - Rate limiting по IP и аккаунту на auth-эндпоинтах; защита от перебора; капча/антибот — Phase 6.
 - Валидация каждого входа (zod), параметризованные запросы (ORM), CSP и security-заголовки, CORS по списку.

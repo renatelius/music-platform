@@ -27,6 +27,22 @@
 
 Пароли — в `.env` (только для локальной разработки).
 
+## API (локально, http://127.0.0.1:4000)
+
+| Метод и путь | Назначение |
+|---|---|
+| `GET /health`, `GET /health/live` | готовность (Postgres, Redis, S3) и «жив ли процесс» |
+| `POST /auth/register` | регистрация + сразу вход; письмо с подтверждением |
+| `POST /auth/login` | вход (лимит 10 попыток / 15 мин на email) |
+| `POST /auth/refresh` | новый access-токен; ротация refresh-токена |
+| `POST /auth/logout`, `POST /auth/logout-all` | выход с устройства / со всех |
+| `GET /auth/sessions`, `DELETE /auth/sessions/:id` | активные сессии, отзыв |
+| `POST /auth/email/verify`, `POST /auth/email/resend` | подтверждение email |
+| `POST /auth/password/forgot`, `POST /auth/password/reset` | сброс пароля |
+| `GET /me` | профиль (нужен `Authorization: Bearer`) |
+
+Нативные клиенты передают `X-Client-Type: native` и получают refresh-токен в теле ответа; браузер — в HttpOnly-cookie. Письма видны в Mailpit: http://127.0.0.1:8025
+
 ## Команды
 
 | Команда | Что делает |

@@ -5,6 +5,37 @@
 
 ## [Unreleased]
 
+## [0.3.0-i2b] — 2026-11-04 — Итерация I2b: авторизация
+
+### Добавлено
+- `@mp/contracts` — контракты авторизации: `RegisterRequest`, `LoginRequest`, `RefreshRequest`, `EmailTokenRequest`, `ForgotPasswordRequest`, `ResetPasswordRequest`, `UserDto`, `AuthResponse`, `SessionDto`; нормализация email, политика пароля (10–128 символов, не равен email), язык (BCP 47); тесты.
+- `apps/api/src/auth` — модуль авторизации:
+  - `password.ts` — Argon2id на встроенном `crypto.argon2` Node.js (PHC-формат, NFKC, `needsRehash`, выравнивание времени для неизвестных email);
+  - `tokens.ts` — JWT access-токены (jose, HS256, 15 мин) и случайные refresh/email-токены (хранится только SHA-256);
+  - `auth.service.ts` — регистрация, вход, ротация refresh-токенов с обнаружением повторного использования, выход, выход со всех устройств, список и отзыв сессий, подтверждение email, сброс пароля;
+  - `auth.controller.ts` — `POST /auth/register|login|refresh|logout|logout-all`, `GET /auth/sessions`, `DELETE /auth/sessions/:id`, `POST /auth/email/verify|resend`, `POST /auth/password/forgot|reset`; `me.controller.ts` — `GET /me`;
+  - `auth.guard.ts` — проверка `Authorization: Bearer` с проверкой живой сессии; `cookies.ts` — HttpOnly-cookie `mp_refresh`;
+  - `auth-rate-limit.ts` — строгие лимиты (fail-closed).
+- `apps/api/src/mail` — отправка писем (nodemailer → Mailpit локально), шаблоны ru/en с экранированием HTML.
+- `apps/api/src/audit` — журнал событий безопасности в `audit_events`.
+- Тесты: unit (пароли, токены, cookie, шаблоны писем, конфиг) и интеграционные `test/auth.test.ts` — 13 сценариев на реальных Postgres/Redis/Mailpit: регистрация, подтверждение email по ссылке из письма, дубликаты, валидация, вход, одинаковая ошибка для неверного пароля и неизвестного email, ротация и кража refresh-токена, cookie-режим, сессии, выход, сброс пароля, защита эндпоинтов, лимиты.
+- ADR-015 — решения по аутентификации.
+
+### Изменено
+- `config/env.ts` — настройки auth/почты/ссылок (`AUTH_JWT_SECRET` ≥ 32 символов, запрет placeholder-секрета в проде, `WEB_APP_URL`, `SMTP_*`, `MAIL_FROM`).
+- `ApiError` — дополнительные заголовки ответа (`Retry-After`, `WWW-Authenticate`).
+- `ZodValidationPipe` — пустое тело запроса считается `{}` (Express 5).
+- `test/helpers.ts` — у каждого тестового приложения своё пространство лимитов в Redis.
+- `.env.example` — секция Auth; `scripts/setup.ps1` — дописывает в существующий `.env` новые настройки из `.env.example` и генерирует случайный `AUTH_JWT_SECRET`; проверка Node ≥ 24.7.
+- Корневой `package.json` — `engines.node >= 24.7`.
+- `TECHNICAL_DECISIONS.md` (ADR-015), `ROADMAP.md`, `PROJECT_STATUS.md`, `README.md` (таблица эндпоинтов).
+
+### Отложено
+- OpenAPI `/docs` — перенесён в I5 (ADR-015).
+
+### Статус
+- `setup.bat` на ПК: **17/17 PASS с первого прогона**. 84 теста зелёные (contracts 27, api 57), включая 13 интеграционных сценариев авторизации на реальных Postgres/Redis/Mailpit. В `.env` дописаны новые настройки, `AUTH_JWT_SECRET` сгенерирован случайно (64 символа). Осталось — push и CI.
+
 ## [0.2.0-i2a] — 2026-11-04 — Итерация I2a: каркас API
 
 ### Добавлено
@@ -35,7 +66,8 @@
 
 ### Статус
 - Первый прогон `setup.bat`: 16/17 PASS. Сгенерирована миграция `0000_strange_prism.sql` (4 таблицы, UUID v7), применена к dev-БД, `GET /health` → ok (Postgres 22 мс, Redis 9 мс, S3 17 мс). Упала сборка API (исправлено выше).
-- Повторный прогон: **17/17 PASS**. 47 тестов зелёные (contracts 22, api 25 — из них интеграционные на реальных Postgres/Redis/S3), lint и typecheck чистые, миграции совпадают со схемой. Код I2a проверен на ПК; осталось — push и зелёный CI.
+- Повторный прогон: **17/17 PASS**. 47 тестов зелёные (contracts 22, api 25 — из них интеграционные на реальных Postgres/Redis/S3), lint и typecheck чистые, миграции совпадают со схемой. Код I2a проверен на ПК.
+- Push (коммит `1a371ae`), CI #2 зелёный: инфраструктура, расширения PostgreSQL, format check, «миграции совпадают со схемой», lint/typecheck/test/build. **Итерация I2a закрыта.**
 
 ### Изменено
 - `push-to-github.bat` — подсказка, как вставить ссылку (правый клик / Ctrl+V); проверка, что это ссылка на GitHub, с повторным вводом вместо выхода.

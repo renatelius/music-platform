@@ -10,7 +10,8 @@ export class ZodValidationPipe<T extends z.ZodType> implements PipeTransform<unk
   constructor(private readonly schema: T) {}
 
   transform(value: unknown): z.output<T> {
-    const result = this.schema.safeParse(value);
+    // Express 5 leaves req.body undefined for requests without a body.
+    const result = this.schema.safeParse(value ?? {});
     if (!result.success) {
       throw new ApiError('VALIDATION_FAILED', { errors: fieldErrorsFromZod(result.error) });
     }

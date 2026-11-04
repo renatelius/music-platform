@@ -34,7 +34,21 @@ const EnvSchema = z.object({
   RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(300),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60_000),
   RATE_LIMIT_PREFIX: z.string().min(1).default('rl'),
+  AUTH_JWT_SECRET: z.string().min(32, 'must be at least 32 characters'),
+  AUTH_ACCESS_TTL_SEC: z.coerce.number().int().min(60).max(3600).default(900),
+  AUTH_REFRESH_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+  AUTH_COOKIE_SECURE: z.stringbool().optional(),
+  WEB_APP_URL: z.url().default('http://localhost:3000'),
+  SMTP_HOST: z.string().min(1).default('127.0.0.1'),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65_535).default(1025),
+  SMTP_SECURE: z.stringbool().default(false),
+  SMTP_USER: z.string().min(1).optional(),
+  SMTP_PASSWORD: z.string().optional(),
+  MAIL_FROM: z.string().min(3).default('Music Platform <no-reply@music-platform.local>'),
 });
+
+/** Placeholder secrets from .env.example must never reach production. */
+const PLACEHOLDER_SECRET = /change_me|dev_only/i;
 
 export interface RateLimitConfig {
   readonly max: number;
@@ -64,6 +78,25 @@ export interface AppConfig {
     readonly buckets: { readonly media: string; readonly masters: string };
   };
   readonly rateLimit: RateLimitConfig;
+  readonly webAppUrl: string;
+  readonly auth: {
+    readonly jwtSecret: string;
+    readonly issuer: string;
+    readonly audience: string;
+    readonly accessTtlSec: number;
+    readonly refreshTtlDays: number;
+    readonly cookieSecure: boolean;
+    readonly emailVerifyTtlHours: number;
+    readonly passwordResetTtlMin: number;
+  };
+  readonly mail: {
+    readonly host: string;
+    readonly port: number;
+    readonly secure: boolean;
+    readonly user: string | undefined;
+    readonly password: string | undefined;
+    readonly from: string;
+  };
 }
 
 export class ConfigError extends Error {
@@ -80,6 +113,11 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): A
     throw new ConfigError(`Invalid environment configuration:\n${details}`);
   }
   const e = parsed.data;
+  if (e.NODE_ENV === 'production' && PLACEHOLDER_SECRET.test(e.AUTH_JWT_SECRET)) {
+    throw new ConfigError(
+      'Invalid environment configuration:\n  AUTH_JWT_SECRET: placeholder value in production',
+    );
+  }
   return {
     env: e.NODE_ENV,
     version: readPackageVersion(),
@@ -105,6 +143,25 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): A
       max: e.RATE_LIMIT_MAX,
       windowMs: e.RATE_LIMIT_WINDOW_MS,
       keyPrefix: e.RATE_LIMIT_PREFIX,
+    },
+    webAppUrl: e.WEB_APP_URL.replace(/\/+$/, ''),
+    auth: {
+      jwtSecret: e.AUTH_JWT_SECRET,
+      issuer: e.API_PUBLIC_URL,
+      audience: 'music-platform',
+      accessTtlSec: e.AUTH_ACCESS_TTL_SEC,
+      refreshTtlDays: e.AUTH_REFRESH_TTL_DAYS,
+      cookieSecure: e.AUTH_COOKIE_SECURE ?? e.NODE_ENV === 'production',
+      emailVerifyTtlHours: 24,
+      passwordResetTtlMin: 60,
+    },
+    mail: {
+      host: e.SMTP_HOST,
+      port: e.SMTP_PORT,
+      secure: e.SMTP_SECURE,
+      user: e.SMTP_USER,
+      password: e.SMTP_PASSWORD,
+      from: e.MAIL_FROM,
     },
   };
 }

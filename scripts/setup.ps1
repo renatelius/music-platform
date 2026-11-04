@@ -69,17 +69,34 @@ function Read-DotEnv([string]$path) {
 
 Add-Report "# Setup report $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 
-Run-Step 'Node.js >= 24' -Critical {
+Run-Step 'Node.js >= 24.7 (built-in Argon2)' -Critical {
   $v = (& node --version)
   $v
-  if ($v -notmatch '^v(\d+)' -or [int]$Matches[1] -lt 24) { $global:LASTEXITCODE = 1 }
+  if ($v -notmatch '^v(\d+)\.(\d+)' -or [int]$Matches[1] -lt 24 -or ([int]$Matches[1] -eq 24 -and [int]$Matches[2] -lt 7)) { $global:LASTEXITCODE = 1 }
 }
 Run-Step 'pnpm available' -Critical { & pnpm --version }
 Run-Step 'Docker engine running' -Critical { & docker info --format '{{.ServerVersion}}' }
 
 Run-Step '.env file' -Critical {
-  if (Test-Path '.env') { '.env already exists - kept as is' }
-  else { Copy-Item '.env.example' '.env'; 'created .env from .env.example' }
+  if (-not (Test-Path '.env')) { Copy-Item '.env.example' '.env'; 'created .env from .env.example' }
+  # Add settings that appeared in .env.example after .env was created; existing values are kept.
+  $current = Read-DotEnv (Join-Path $root '.env')
+  $raw = [System.IO.File]::ReadAllText((Join-Path $root '.env'))
+  $added = @()
+  foreach ($line in Get-Content '.env.example') {
+    if ($line -notmatch '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=') { continue }
+    $key = $Matches[1]
+    if ($current.ContainsKey($key)) { continue }
+    if ($key -eq 'AUTH_JWT_SECRET') {
+      $bytes = New-Object byte[] 48
+      [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+      $line = 'AUTH_JWT_SECRET=' + [Convert]::ToBase64String($bytes)
+    }
+    if ($raw.Length -gt 0 -and -not $raw.EndsWith("`n")) { $line = "`r`n" + $line; $raw = "x`n" }
+    Add-Content -Path '.env' -Value $line -Encoding ASCII
+    $added += $key
+  }
+  if ($added.Count -gt 0) { "added to .env: $($added -join ', ')" } else { '.env is up to date' }
 }
 $envMap = Read-DotEnv (Join-Path $root '.env')
 

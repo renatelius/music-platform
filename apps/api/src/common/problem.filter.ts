@@ -3,6 +3,7 @@ import { inspect } from 'node:util';
 
 import { type ArgumentsHost, Catch, type ExceptionFilter, Logger } from '@nestjs/common';
 
+import { ApiError } from './api-error.js';
 import { toProblem } from './problem-mapping.js';
 import { writeProblem } from './problem-response.js';
 import { getRequestId, type HttpRequest, pathOnly } from './request-context.js';
@@ -26,6 +27,10 @@ export class ProblemExceptionFilter implements ExceptionFilter {
         { requestId: problem.requestId },
       );
     }
-    writeProblem(res, problem);
+    writeProblem(
+      res,
+      problem,
+      exception instanceof ApiError ? exception.options.headers : undefined,
+    );
   }
 }
