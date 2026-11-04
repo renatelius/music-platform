@@ -5,7 +5,8 @@ import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import type { Database } from '../dist/db/client.js';
-import { auditEvents, users } from '../dist/db/schema.js';
+import { hashToken } from '../dist/auth/tokens.js';
+import { auditEvents, sessions, users } from '../dist/db/schema.js';
 import { DB } from '../dist/infra/tokens.js';
 import { startTestApp, type TestApp } from './helpers.js';
 import { countEmails, tokenFromEmail, waitForEmail } from './mailpit.js';
@@ -85,7 +86,7 @@ describe('auth', () => {
     });
     expect(auth.refreshToken).toBeUndefined();
     expect(refreshCookie(response)).toMatch(/HttpOnly; SameSite=Strict/);
-    expect(refreshCookie(response)).toMatch(/Path=\/auth/);
+    expect(refreshCookie(response)).toContain(`Path=${t.config.auth.cookiePath};`);
 
     const me = await call('GET', '/me', { token: auth.accessToken });
     expect(me.status).toBe(200);
@@ -170,7 +171,20 @@ describe('auth', () => {
     expect(refreshCookie(r1)).toBeUndefined();
     expect((await call('GET', '/me', { token: rotated.accessToken })).status).toBe(200);
 
-    // The old token is replayed (e.g. it was stolen): both it and the new one stop working.
+    // Replayed right away (two tabs racing): 409, nothing is revoked.
+    const race = await call('POST', '/auth/refresh', {
+      body: { refreshToken: first },
+      native: true,
+    });
+    expect(race.status).toBe(409);
+    expect(ProblemDetails.parse(race.body).code).toBe('CONFLICT');
+    expect((await call('GET', '/me', { token: rotated.accessToken })).status).toBe(200);
+
+    // Replayed later (the token was copied): both it and the new one stop working.
+    await db
+      .update(sessions)
+      .set({ revokedAt: new Date(Date.now() - 60_000) })
+      .where(eq(sessions.tokenHash, hashToken(first ?? '')));
     const replay = await call('POST', '/auth/refresh', {
       body: { refreshToken: first },
       native: true,
@@ -270,6 +284,26 @@ describe('auth', () => {
     const ok = await call('POST', '/auth/login', { body: { email, password: newPassword } });
     expect(ok.status).toBe(200);
     expect(AuthResponse.parse(ok.body).user.emailVerified).toBe(true);
+  });
+
+  it('updates the profile', async () => {
+    const { auth } = await register();
+    const updated = await call('PATCH', '/me', {
+      token: auth.accessToken,
+      body: { displayName: ' New Name ', locale: 'ru' },
+    });
+    expect(updated.status).toBe(200);
+    expect(UserDto.parse(updated.body)).toMatchObject({ displayName: 'New Name', locale: 'ru' });
+    const me = await call('GET', '/me', { token: auth.accessToken });
+    expect(UserDto.parse(me.body).locale).toBe('ru');
+
+    expect((await call('PATCH', '/me', { token: auth.accessToken, body: {} })).status).toBe(422);
+    const badLocale = await call('PATCH', '/me', {
+      token: auth.accessToken,
+      body: { locale: 'Russian' },
+    });
+    expect(badLocale.status).toBe(422);
+    expect((await call('PATCH', '/me', { body: { displayName: 'X' } })).status).toBe(401);
   });
 
   it('protects endpoints that need a session', async () => {

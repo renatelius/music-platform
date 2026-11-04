@@ -5,10 +5,10 @@ import { renderAuthEmail } from './templates.js';
 describe('renderAuthEmail', () => {
   it('localizes by user locale with English fallback', () => {
     expect(renderAuthEmail('verify_email', 'ru', 'a@b.co', 'http://x').subject).toBe(
-      'Подтвердите email',
+      'Подтвердите email · ReMusic',
     );
     expect(renderAuthEmail('reset_password', 'de', 'a@b.co', 'http://x').subject).toBe(
-      'Reset your password',
+      'Reset your password · ReMusic',
     );
   });
 

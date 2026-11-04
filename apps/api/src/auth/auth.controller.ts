@@ -43,7 +43,7 @@ import {
   toUserDto,
 } from './auth.service.js';
 import { AuthGuard, bearerToken, CurrentAuth } from './auth.guard.js';
-import { clearRefreshCookie, readCookie, setRefreshCookie } from './cookies.js';
+import { clearRefreshCookie, type CookieOptions, readCookie, setRefreshCookie } from './cookies.js';
 
 function requestMeta(req: HttpRequest, deviceName?: string): RequestMeta {
   const userAgent = req.headers['user-agent'];
@@ -65,6 +65,10 @@ export class AuthController {
     @Inject(AuthRateLimiter) private readonly limits: AuthRateLimiter,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
+
+  private get cookieOptions(): CookieOptions {
+    return { secure: this.config.auth.cookieSecure, path: this.config.auth.cookiePath };
+  }
 
   @Post('register')
   @HttpCode(201)
@@ -107,7 +111,9 @@ export class AuthController {
     try {
       return this.deliver(await this.auth.refresh(token, meta), req, res);
     } catch (error) {
-      if (!isNative(req)) clearRefreshCookie(res, this.config.auth.cookieSecure);
+      // 409 means another tab already rotated the token: the browser holds the newest cookie.
+      const rejected = error instanceof ApiError && error.code === 'UNAUTHENTICATED';
+      if (rejected && !isNative(req)) clearRefreshCookie(res, this.cookieOptions);
       throw error;
     }
   }
@@ -124,7 +130,7 @@ export class AuthController {
       bearerToken(req.headers.authorization),
       requestMeta(req),
     );
-    clearRefreshCookie(res, this.config.auth.cookieSecure);
+    clearRefreshCookie(res, this.cookieOptions);
   }
 
   @Post('logout-all')
@@ -136,7 +142,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: ServerResponse,
   ): Promise<void> {
     await this.auth.logoutAll(auth, requestMeta(req));
-    clearRefreshCookie(res, this.config.auth.cookieSecure);
+    clearRefreshCookie(res, this.cookieOptions);
   }
 
   @Get('sessions')
@@ -197,19 +203,14 @@ export class AuthController {
     const meta = requestMeta(req);
     await this.limits.consume('tokenIp', ipKey(meta));
     await this.auth.resetPassword(body, meta);
-    clearRefreshCookie(res, this.config.auth.cookieSecure);
+    clearRefreshCookie(res, this.cookieOptions);
   }
 
   /** Browsers get the refresh token as an HttpOnly cookie, native apps in the body. */
   private deliver(issued: IssuedAuth, req: HttpRequest, res: ServerResponse): AuthResponse {
     const native = isNative(req);
     if (!native) {
-      setRefreshCookie(
-        res,
-        issued.refreshToken,
-        issued.refreshTokenExpiresAt,
-        this.config.auth.cookieSecure,
-      );
+      setRefreshCookie(res, issued.refreshToken, issued.refreshTokenExpiresAt, this.cookieOptions);
     }
     return {
       accessToken: issued.accessToken,

@@ -2,8 +2,6 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { REFRESH_COOKIE } from '@mp/contracts';
 
-export const REFRESH_COOKIE_PATH = '/auth';
-
 export function readCookie(req: IncomingMessage, name: string): string | undefined {
   const header = req.headers.cookie;
   if (header === undefined) return undefined;
@@ -21,15 +19,21 @@ export function readCookie(req: IncomingMessage, name: string): string | undefin
   return undefined;
 }
 
-function serialize(value: string, maxAgeSec: number, secure: boolean): string {
+export interface CookieOptions {
+  secure: boolean;
+  /** Path as the browser sees it, e.g. `/auth`, or `/api/auth` behind the web app proxy. */
+  path: string;
+}
+
+function serialize(value: string, maxAgeSec: number, options: CookieOptions): string {
   const parts = [
     `${REFRESH_COOKIE}=${encodeURIComponent(value)}`,
-    `Path=${REFRESH_COOKIE_PATH}`,
+    `Path=${options.path}`,
     `Max-Age=${String(Math.max(0, Math.floor(maxAgeSec)))}`,
     'HttpOnly',
     'SameSite=Strict',
   ];
-  if (secure) parts.push('Secure');
+  if (options.secure) parts.push('Secure');
   return parts.join('; ');
 }
 
@@ -37,11 +41,11 @@ export function setRefreshCookie(
   res: ServerResponse,
   token: string,
   expiresAt: Date,
-  secure: boolean,
+  options: CookieOptions,
 ): void {
-  res.setHeader('set-cookie', serialize(token, (expiresAt.getTime() - Date.now()) / 1000, secure));
+  res.setHeader('set-cookie', serialize(token, (expiresAt.getTime() - Date.now()) / 1000, options));
 }
 
-export function clearRefreshCookie(res: ServerResponse, secure: boolean): void {
-  res.setHeader('set-cookie', serialize('', 0, secure));
+export function clearRefreshCookie(res: ServerResponse, options: CookieOptions): void {
+  res.setHeader('set-cookie', serialize('', 0, options));
 }

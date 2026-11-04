@@ -157,6 +157,47 @@ Run-Step "API smoke test (GET http://127.0.0.1:$apiPort/health)" {
   }
 }
 
+$webPort = '3000'
+Run-Step "Web smoke test (http://127.0.0.1:$webPort/login and /api/health through the proxy)" {
+  $apiDir = Join-Path $root 'apps\api'
+  $webDir = Join-Path $root 'apps\web'
+  $nextBin = Join-Path $webDir 'node_modules\next\dist\bin\next'
+  $logs = @{}
+  foreach ($n in 'api-out', 'api-err', 'web-out', 'web-err') { $logs[$n] = Join-Path $env:TEMP "mp-smoke-$n.txt" }
+  $api = Start-Process -FilePath 'node' -ArgumentList @('--env-file-if-exists=../../.env', 'dist/main.js') `
+    -WorkingDirectory $apiDir -PassThru -WindowStyle Hidden -RedirectStandardOutput $logs['api-out'] -RedirectStandardError $logs['api-err']
+  $web = Start-Process -FilePath 'node' -ArgumentList @("`"$nextBin`"", 'start', '--port', $webPort, '--hostname', '127.0.0.1') `
+    -WorkingDirectory $webDir -PassThru -WindowStyle Hidden -RedirectStandardOutput $logs['web-out'] -RedirectStandardError $logs['web-err']
+  $login = $null; $health = $null
+  try {
+    for ($i = 0; $i -lt 60 -and -not ($login -and $health); $i++) {
+      Start-Sleep -Milliseconds 500
+      if ($web.HasExited -or $api.HasExited) { break }
+      if (-not $login) {
+        try {
+          $r = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$webPort/login" -TimeoutSec 5 -ErrorAction Stop
+          if ($r.Content -match 'ReMusic') { $login = "GET /login -> HTTP $($r.StatusCode), $($r.Content.Length) bytes, contains 'ReMusic'" }
+        } catch {}
+      }
+      if (-not $health) {
+        try { $health = (Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$webPort/api/health" -TimeoutSec 5 -ErrorAction Stop).Content } catch {}
+      }
+    }
+  } finally {
+    foreach ($proc in @($web, $api)) {
+      if (-not $proc.HasExited) { & taskkill /PID $proc.Id /T /F 2>&1 | Out-Null }
+    }
+  }
+  if ($login) { $login } else { 'Web app did not serve /login' }
+  if ($health) { "GET /api/health (proxied) -> $health" } else { 'Proxy /api/health did not answer' }
+  if (-not ($login -and $health)) {
+    foreach ($n in 'web-out', 'web-err', 'api-err') {
+      if (Test-Path $logs[$n]) { "--- $n"; Get-Content $logs[$n] -Tail 25 }
+    }
+    $global:LASTEXITCODE = 1
+  }
+}
+
 Save-Report
 $failed = @($results | Where-Object { $_.Status -eq 'FAIL' }).Count
 Write-Host ''

@@ -1,0 +1,95 @@
+@import 'tailwindcss';
+
+/* Components from @mp/ui use Tailwind classes too. */
+@source '../../../packages/ui/src';
+
+/* Semantic tokens come from @mp/design-tokens (CSS variables that switch with the theme). */
+@theme inline {
+  --color-bg: var(--mp-bg);
+  --color-bg-elevated: var(--mp-bg-elevated);
+  --color-surface: var(--mp-surface);
+  --color-surface-hover: var(--mp-surface-hover);
+  --color-border: var(--mp-border);
+  --color-border-strong: var(--mp-border-strong);
+  --color-fg: var(--mp-text);
+  --color-fg-muted: var(--mp-text-muted);
+  --color-fg-subtle: var(--mp-text-subtle);
+  --color-accent: var(--mp-accent);
+  --color-accent-hover: var(--mp-accent-hover);
+  --color-accent-fg: var(--mp-accent-fg);
+  --color-focus: var(--mp-focus);
+  --color-danger: var(--mp-danger);
+  --color-danger-soft: var(--mp-danger-soft);
+  --color-success: var(--mp-success);
+  --color-success-soft: var(--mp-success-soft);
+  --color-warning: var(--mp-warning);
+  --color-warning-soft: var(--mp-warning-soft);
+  --shadow-card: var(--mp-shadow-card);
+  --shadow-pop: var(--mp-shadow-pop);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+html {
+  background: var(--mp-bg);
+  color: var(--mp-text);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  min-height: 100dvh;
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--mp-accent) 30%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--mp-accent);
+  outline-offset: 2px;
+}
+
+@keyframes mp-float {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(6%, -8%, 0) scale(1.12);
+  }
+}
+
+@keyframes mp-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-float {
+  animation: mp-float 16s var(--mp-ease) infinite alternate;
+}
+
+.animate-float-slow {
+  animation: mp-float 22s var(--mp-ease) -6s infinite alternate-reverse;
+}
+
+.animate-rise {
+  animation: mp-rise var(--mp-duration-slow) var(--mp-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -18,7 +18,8 @@ const EnvSchema = z.object({
   API_PORT: z.coerce.number().int().min(0).max(65_535).default(4000),
   API_PUBLIC_URL: z.url().default('http://127.0.0.1:4000'),
   CORS_ORIGINS: csv.default(['http://localhost:3000', 'http://127.0.0.1:3000']),
-  TRUST_PROXY: z.stringbool().default(false),
+  /** `loopback` trusts X-Forwarded-For only from a proxy on the same host (e.g. the web app). */
+  TRUST_PROXY: z.enum(['false', 'true', 'loopback']).default('loopback'),
   LOG_LEVEL: LogLevel.default('log'),
   LOG_FORMAT: z.enum(['json', 'pretty']).default('pretty'),
   DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, 'must be a postgres:// URL'),
@@ -38,13 +39,18 @@ const EnvSchema = z.object({
   AUTH_ACCESS_TTL_SEC: z.coerce.number().int().min(60).max(3600).default(900),
   AUTH_REFRESH_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
   AUTH_COOKIE_SECURE: z.stringbool().optional(),
+  /** Path of the refresh cookie as the browser sees it (`/api/auth` behind the web app proxy). */
+  AUTH_COOKIE_PATH: z
+    .string()
+    .regex(/^\/[A-Za-z0-9/_-]*$/, 'must be an absolute path')
+    .default('/auth'),
   WEB_APP_URL: z.url().default('http://localhost:3000'),
   SMTP_HOST: z.string().min(1).default('127.0.0.1'),
   SMTP_PORT: z.coerce.number().int().min(1).max(65_535).default(1025),
   SMTP_SECURE: z.stringbool().default(false),
   SMTP_USER: z.string().min(1).optional(),
   SMTP_PASSWORD: z.string().optional(),
-  MAIL_FROM: z.string().min(3).default('Music Platform <no-reply@music-platform.local>'),
+  MAIL_FROM: z.string().min(3).default('ReMusic <no-reply@remusic.local>'),
 });
 
 /** Placeholder secrets from .env.example must never reach production. */
@@ -64,7 +70,7 @@ export interface AppConfig {
     readonly port: number;
     readonly publicUrl: string;
     readonly corsOrigins: readonly string[];
-    readonly trustProxy: boolean;
+    readonly trustProxy: boolean | 'loopback';
   };
   readonly log: { readonly level: LogLevel; readonly format: 'json' | 'pretty' };
   readonly db: { readonly url: string; readonly poolMax: number };
@@ -86,6 +92,7 @@ export interface AppConfig {
     readonly accessTtlSec: number;
     readonly refreshTtlDays: number;
     readonly cookieSecure: boolean;
+    readonly cookiePath: string;
     readonly emailVerifyTtlHours: number;
     readonly passwordResetTtlMin: number;
   };
@@ -126,7 +133,7 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): A
       port: e.API_PORT,
       publicUrl: e.API_PUBLIC_URL,
       corsOrigins: e.CORS_ORIGINS,
-      trustProxy: e.TRUST_PROXY,
+      trustProxy: e.TRUST_PROXY === 'loopback' ? 'loopback' : e.TRUST_PROXY === 'true',
     },
     log: { level: e.LOG_LEVEL, format: e.LOG_FORMAT },
     db: { url: e.DATABASE_URL, poolMax: e.DATABASE_POOL_MAX },
@@ -152,6 +159,7 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): A
       accessTtlSec: e.AUTH_ACCESS_TTL_SEC,
       refreshTtlDays: e.AUTH_REFRESH_TTL_DAYS,
       cookieSecure: e.AUTH_COOKIE_SECURE ?? e.NODE_ENV === 'production',
+      cookiePath: e.AUTH_COOKIE_PATH,
       emailVerifyTtlHours: 24,
       passwordResetTtlMin: 60,
     },

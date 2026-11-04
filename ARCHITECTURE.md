@@ -1,4 +1,4 @@
-# Architecture — [PROJECT NAME]
+# Architecture — ReMusic
 
 > Версия 0.1 · 2026-11-04 · Статус: на утверждении
 > Обоснования решений — `TECHNICAL_DECISIONS.md` (ссылки вида ADR-0XX).
@@ -121,7 +121,7 @@ music-platform/
 | `admin` | модерация, жалобы, RBAC | 4 |
 | `billing` | тарифы, подписки, вебхуки платёжных провайдеров | 6 |
 
-Реализовано в I2a: `config`, `common`, `infra`, `db`, `health` (ADR-014). Сквозное: конфиг с валидацией, структурные логи (pino) с request-id, глобальный обработчик ошибок (RFC 9457 Problem Details), rate limiting (Redis), health/readiness, OpenAPI на `/docs`.
+Реализовано: I2a — `config`, `common`, `infra`, `db`, `health`; I2b — `auth`, `mail`, `audit`; I3 — веб-клиент `apps/web` и пакеты `design-tokens`, `ui`, `i18n`, `api-client` (ADR-016). Детали I2a: `config`, `common`, `infra`, `db`, `health` (ADR-014). Сквозное: конфиг с валидацией, структурные логи (pino) с request-id, глобальный обработчик ошибок (RFC 9457 Problem Details), rate limiting (Redis), health/readiness, OpenAPI на `/docs`.
 
 ---
 

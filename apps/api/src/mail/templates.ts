@@ -47,11 +47,14 @@ const escapeHtml = (value: string) =>
 
 export function renderAuthEmail(kind: Kind, locale: string, to: string, link: string): MailMessage {
   const copy = COPY[locale.startsWith('ru') ? 'ru' : 'en'][kind];
+  const subject = `${copy.subject} · ReMusic`;
   const text = `${copy.intro}\n\n${copy.action}: ${link}\n\n${copy.outro}\n`;
-  const html = `<!doctype html><html><body style="font-family:system-ui,sans-serif;line-height:1.5;color:#111">
+  const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#F6F6F9;font-family:system-ui,sans-serif;line-height:1.5;color:#11111A">
+<div style="max-width:480px;margin:0 auto;background:#FFFFFF;border-radius:16px;padding:32px">
+<p style="margin:0 0 24px;font-size:20px;font-weight:600"><span style="color:#7C5CFF">Re</span>Music</p>
 <p>${escapeHtml(copy.intro)}</p>
-<p><a href="${escapeHtml(link)}" style="display:inline-block;padding:10px 18px;background:#111;color:#fff;border-radius:8px;text-decoration:none">${escapeHtml(copy.action)}</a></p>
-<p style="color:#666;font-size:13px">${escapeHtml(copy.outro)}</p>
-</body></html>`;
-  return { to, subject: copy.subject, text, html };
+<p><a href="${escapeHtml(link)}" style="display:inline-block;padding:12px 20px;background:#5B3DF5;color:#FFFFFF;border-radius:12px;text-decoration:none;font-weight:600">${escapeHtml(copy.action)}</a></p>
+<p style="color:#545468;font-size:13px">${escapeHtml(copy.outro)}</p>
+</div></body></html>`;
+  return { to, subject, text, html };
 }

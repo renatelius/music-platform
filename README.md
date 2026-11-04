@@ -1,6 +1,6 @@
-# [PROJECT NAME] — music platform
+# ReMusic
 
-Монорепозиторий музыкальной платформы: Web, Windows, Android, iOS на общем backend.
+Монорепозиторий музыкальной платформы **ReMusic**: Web, Windows, Android, iOS на общем backend.
 
 - Требования и решения: `BRIEF.md`, `BRIEF_v2.md`, `TECHNICAL_DECISIONS.md`
 - Архитектура: `ARCHITECTURE.md` · План: `ROADMAP.md` · Состояние: `PROJECT_STATUS.md`
@@ -10,7 +10,8 @@
 
 1. Один раз на новом ПК: `powershell -ExecutionPolicy Bypass -File scripts\install-dev-tools.ps1` (Node, pnpm, Docker, Rust, FFmpeg — в `B:\develop`), перезагрузка, запуск Docker Desktop. Диагностика окружения: `powershell -ExecutionPolicy Bypass -File scripts\check-env.ps1`.
 2. `setup.bat` — создаёт `.env`, ставит зависимости, поднимает инфраструктуру, прогоняет все проверки. Отчёт — `setup-report.txt`.
-3. Повседневно: `infra.bat up | down | ps | logs | psql | reset`.
+3. Разработка: `dev.bat` — поднимает инфраструктуру, API (http://127.0.0.1:4000) и веб-приложение (http://localhost:3000), открывает браузер.
+4. Повседневно: `infra.bat up | down | ps | logs | psql | reset`.
 
 ## Инструменты разработчика
 
@@ -39,15 +40,17 @@
 | `GET /auth/sessions`, `DELETE /auth/sessions/:id` | активные сессии, отзыв |
 | `POST /auth/email/verify`, `POST /auth/email/resend` | подтверждение email |
 | `POST /auth/password/forgot`, `POST /auth/password/reset` | сброс пароля |
-| `GET /me` | профиль (нужен `Authorization: Bearer`) |
+| `GET /me`, `PATCH /me` | профиль, смена имени и языка (нужен `Authorization: Bearer`) |
 
-Нативные клиенты передают `X-Client-Type: native` и получают refresh-токен в теле ответа; браузер — в HttpOnly-cookie. Письма видны в Mailpit: http://127.0.0.1:8025
+Веб-приложение проксирует API под `/api/*` (например, `/api/auth/login`). Нативные клиенты передают `X-Client-Type: native` и получают refresh-токен в теле ответа; браузер — в HttpOnly-cookie. Письма видны в Mailpit: http://127.0.0.1:8025
 
 ## Команды
 
 | Команда | Что делает |
 |---|---|
 | `pnpm check` | lint + typecheck + test + build всех пакетов (тесты API используют Docker-инфраструктуру) |
+| `pnpm dev` | API + веб в режиме разработки (то же, что `dev.bat` без Docker) |
+| `pnpm dev:web` | только веб: http://localhost:3000 |
 | `pnpm dev:api` | API в режиме разработки: http://127.0.0.1:4000 (`/health`, `/health/live`) |
 | `pnpm db:generate` | создать SQL-миграцию из `apps/api/src/db/schema.ts` |
 | `pnpm db:migrate` | применить миграции к dev-БД |
@@ -63,9 +66,14 @@ apps/
     src/       config, common (ошибки, rate limit, request id, логи), infra, db, health
     drizzle/   SQL-миграции (генерируются, коммитятся)
     test/      интеграционные тесты
+  web/         веб-приложение на Next.js 16 (вход, регистрация, главная, аккаунт)
 packages/
-  config/      общие пресеты TypeScript
-  contracts/   схемы API и общие доменные правила (zod)
+  config/        общие пресеты TypeScript
+  contracts/     схемы API и общие доменные правила (zod)
+  design-tokens/ цвета, тени, радиусы, анимации → tokens.css (светлая/тёмная тема)
+  ui/            React-компоненты на Tailwind CSS v4
+  i18n/          переводы (en, ru) и определение языка
+  api-client/    типизированный клиент API для всех платформ
 infrastructure/docker/   локальная инфраструктура (docker compose)
 scripts/       служебные скрипты
 docs/          исследование и документация

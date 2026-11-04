@@ -50,3 +50,6 @@ install-log.txt
 setup-report.txt
 *.local
 relocate-log.txt
+
+# Next.js (generated)
+next-env.d.ts

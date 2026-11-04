@@ -58,6 +58,13 @@ export type ForgotPasswordRequest = z.infer<typeof ForgotPasswordRequest>;
 export const ResetPasswordRequest = z.object({ token: OpaqueToken, password: Password });
 export type ResetPasswordRequest = z.infer<typeof ResetPasswordRequest>;
 
+export const UpdateProfileRequest = z
+  .object({ displayName: DisplayName.optional(), locale: Locale.optional() })
+  .refine((data) => data.displayName !== undefined || data.locale !== undefined, {
+    message: 'Nothing to update',
+  });
+export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequest>;
+
 export const UserDto = z.object({
   id: Id,
   email: z.string(),

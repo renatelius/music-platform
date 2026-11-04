@@ -6,3 +6,4 @@ coverage
 pnpm-lock.yaml
 apps/api/drizzle
 *.md
+next-env.d.ts

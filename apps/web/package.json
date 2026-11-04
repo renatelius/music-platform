@@ -1,0 +1,37 @@
+{
+  "name": "@mp/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ReMusic web app (Next.js App Router)",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "typecheck": "next typegen && tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mp/api-client": "workspace:*",
+    "@mp/contracts": "workspace:*",
+    "@mp/design-tokens": "workspace:*",
+    "@mp/i18n": "workspace:*",
+    "@mp/ui": "workspace:*",
+    "next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@mp/config": "workspace:*",
+    "@tailwindcss/postcss": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "eslint": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

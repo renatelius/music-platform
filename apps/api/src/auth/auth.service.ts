@@ -8,6 +8,7 @@ import type {
   RegisterRequest,
   ResetPasswordRequest,
   SessionDto,
+  UpdateProfileRequest,
   UserDto,
 } from '@mp/contracts';
 import { and, eq, gt, isNull } from 'drizzle-orm';
@@ -47,6 +48,11 @@ export interface IssuedAuth {
 }
 
 const INVALID_CREDENTIALS = 'Invalid email or password.';
+/**
+ * Two tabs may refresh with the same cookie at the same moment. A token rotated less than this
+ * long ago is answered with 409 (retry with the newest token) instead of being treated as theft.
+ */
+export const REFRESH_REUSE_GRACE_MS = 10_000;
 const INVALID_LINK = 'The link is invalid or has expired.';
 const unauthenticated = (detail?: string) =>
   new ApiError('UNAUTHENTICATED', {
@@ -144,6 +150,10 @@ export class AuthService {
         .for('update');
       if (current === undefined) return { kind: 'invalid' as const };
       if (current.revokedAt !== null) {
+        const justRotated =
+          current.replacedById !== null &&
+          now.getTime() - current.revokedAt.getTime() < REFRESH_REUSE_GRACE_MS;
+        if (justRotated) return { kind: 'stale' as const };
         await tx
           .update(sessions)
           .set({ revokedAt: now })
@@ -171,6 +181,11 @@ export class AuthService {
       });
       this.logger.warn(`Refresh token reuse detected, session family revoked`);
       throw unauthenticated('Session has been revoked. Please sign in again.');
+    }
+    if (outcome.kind === 'stale') {
+      throw new ApiError('CONFLICT', {
+        detail: 'This refresh token was just rotated. Retry with the latest one.',
+      });
     }
     if (outcome.kind === 'invalid') throw unauthenticated('Session is invalid or expired.');
     return this.withAccessToken(outcome.user, outcome.next.row, outcome.next.refreshToken);
@@ -274,6 +289,19 @@ export class AuthService {
 
   async getUser(userId: string): Promise<UserRow> {
     const [user] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (user === undefined) throw unauthenticated();
+    return user;
+  }
+
+  async updateProfile(userId: string, input: UpdateProfileRequest): Promise<UserRow> {
+    const [user] = await this.db
+      .update(users)
+      .set({
+        ...(input.displayName !== undefined ? { displayName: input.displayName } : {}),
+        ...(input.locale !== undefined ? { locale: input.locale } : {}),
+      })
+      .where(eq(users.id, userId))
+      .returning();
     if (user === undefined) throw unauthenticated();
     return user;
   }

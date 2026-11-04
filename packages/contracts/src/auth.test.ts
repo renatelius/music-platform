@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { LoginRequest, RegisterRequest } from './auth.js';
+import { LoginRequest, RegisterRequest, UpdateProfileRequest } from './auth.js';
 
 const valid = {
   email: '  User@Example.COM ',
@@ -39,5 +39,13 @@ describe('RegisterRequest', () => {
 describe('LoginRequest', () => {
   it('does not apply the registration password policy', () => {
     expect(LoginRequest.safeParse({ email: 'a@b.co', password: 'x' }).success).toBe(true);
+  });
+});
+
+describe('UpdateProfileRequest', () => {
+  it('accepts partial updates and rejects empty ones', () => {
+    expect(UpdateProfileRequest.parse({ displayName: ' Bo ' })).toEqual({ displayName: 'Bo' });
+    expect(UpdateProfileRequest.safeParse({ locale: 'ru' }).success).toBe(true);
+    expect(UpdateProfileRequest.safeParse({}).success).toBe(false);
   });
 });

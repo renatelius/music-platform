@@ -24,7 +24,7 @@ describe('cookies', () => {
 
   it('sets an HttpOnly, SameSite=Strict cookie scoped to /auth', () => {
     const { res, headers } = fakeRes();
-    setRefreshCookie(res, 'abc', new Date(Date.now() + 60_000), true);
+    setRefreshCookie(res, 'abc', new Date(Date.now() + 60_000), { secure: true, path: '/auth' });
     const value = String(headers.get('set-cookie'));
     expect(value).toMatch(
       /^mp_refresh=abc; Path=\/auth; Max-Age=(59|60); HttpOnly; SameSite=Strict; Secure$/,
@@ -33,9 +33,9 @@ describe('cookies', () => {
 
   it('clears the cookie', () => {
     const { res, headers } = fakeRes();
-    clearRefreshCookie(res, false);
+    clearRefreshCookie(res, { secure: false, path: '/api/auth' });
     expect(String(headers.get('set-cookie'))).toBe(
-      'mp_refresh=; Path=/auth; Max-Age=0; HttpOnly; SameSite=Strict',
+      'mp_refresh=; Path=/api/auth; Max-Age=0; HttpOnly; SameSite=Strict',
     );
   });
 });
