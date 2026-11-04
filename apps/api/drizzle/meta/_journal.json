@@ -8,6 +8,13 @@
       "when": 1793811428965,
       "tag": "0000_strange_prism",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793830185842,
+      "tag": "0001_amusing_annihilus",
+      "breakpoints": true
     }
   ]
 }
