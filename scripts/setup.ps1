@@ -127,6 +127,16 @@ Run-Step 'Mailpit API' {
   $r.Content
 }
 
+Run-Step 'FFmpeg with required encoders (aac, libopus, flac, libmp3lame)' {
+  $ff = if ($envMap['FFMPEG_PATH']) { $envMap['FFMPEG_PATH'] } else { 'ffmpeg' }
+  $fp = if ($envMap['FFPROBE_PATH']) { $envMap['FFPROBE_PATH'] } else { 'ffprobe' }
+  (& $ff -hide_banner -version | Select-Object -First 1)
+  (& $fp -hide_banner -version | Select-Object -First 1)
+  $encoders = (& $ff -hide_banner -encoders) -join "`n"
+  $missing = @('aac', 'libopus', 'flac', 'libmp3lame') | Where-Object { $encoders -notmatch "(?m)^\s*A\S*\s+$_\s" }
+  if ($missing.Count -gt 0) { "missing encoders: $($missing -join ', ')"; $global:LASTEXITCODE = 1 } else { 'all required encoders present' }
+}
+
 Run-Step 'Generate DB migrations from schema (drizzle-kit)' { & pnpm db:generate }
 Run-Step 'Format code (prettier --write)' { & pnpm format }
 Run-Step 'Lint + typecheck + test + build' { & pnpm check }

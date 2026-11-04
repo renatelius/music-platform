@@ -55,7 +55,8 @@
 
 ## I4 — критерии готовности (ADR-017)
 **I4a — worker и конвейер**
-- [ ] `apps/worker` поднимается вместе с API (`dev.bat`), очередь `ingest` в Redis (BullMQ)
+- [ ] Слой FFmpeg (`src/media`): формат, громкость, тишина, ошибки декодера — тесты на синтетике
+- [ ] Процесс worker (`apps/api/src/worker`) поднимается вместе с API (`dev.bat`), очередь `ingest` в Redis (BullMQ)
 - [ ] Синтетические файлы FFmpeg: lossless 16/44.1 → есть FLAC; Hi-Res 24/96 → FLAC «как есть» и метка Hi-Res; MP3 128 → нет FLAC и нет рендиций выше 128 kbps; тишина и битый файл отклоняются с понятной причиной
 - [ ] Громкость (LUFS, true peak) совпадает с эталоном в пределах допуска
 - [ ] Таблицы каталога и прав (artists, releases, tracks, track_assets, track_loudness, sources, track_rights), миграция совпадает со схемой

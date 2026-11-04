@@ -51,6 +51,9 @@ const EnvSchema = z.object({
   SMTP_USER: z.string().min(1).optional(),
   SMTP_PASSWORD: z.string().optional(),
   MAIL_FROM: z.string().min(3).default('ReMusic <no-reply@remusic.local>'),
+  /** FFmpeg binaries for the audio pipeline; looked up on PATH by default. */
+  FFMPEG_PATH: z.string().min(1).default('ffmpeg'),
+  FFPROBE_PATH: z.string().min(1).default('ffprobe'),
 });
 
 /** Placeholder secrets from .env.example must never reach production. */
@@ -104,6 +107,7 @@ export interface AppConfig {
     readonly password: string | undefined;
     readonly from: string;
   };
+  readonly media: { readonly ffmpegPath: string; readonly ffprobePath: string };
 }
 
 export class ConfigError extends Error {
@@ -171,6 +175,7 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): A
       password: e.SMTP_PASSWORD,
       from: e.MAIL_FROM,
     },
+    media: { ffmpegPath: e.FFMPEG_PATH, ffprobePath: e.FFPROBE_PATH },
   };
 }
 

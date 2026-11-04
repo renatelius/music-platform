@@ -65,7 +65,7 @@ pnpm workspaces + Turborepo. Структура упрощена по сравн
 music-platform/
 ├── apps/
 │   ├── api/               NestJS — модульный монолит (REST + WebSocket)
-│   ├── worker/            NestJS standalone — очереди: ingest, транскодинг, анализ
+│   │                      + процесс worker (`src/worker`) — очереди: ingest, транскодинг, анализ (ADR-017)
 │   ├── web/               Next.js — веб-клиент
 │   ├── desktop/           Tauri 2 + Vite + React — Windows-клиент
 │   ├── mobile/            Expo (React Native) — Android + iOS          [Phase 3]
@@ -94,7 +94,7 @@ music-platform/
 ```
 
 **Отличия от BRIEF_v2 §10 и почему:**
-- `services/*` (7 микросервисов) → **модули внутри `apps/api`** + `apps/worker`. Требование ТЗ «не превращай в микросервисы на старте». Границы модулей сохраняются — выделить сервис потом = перенести папку.
+- `services/*` (7 микросервисов) → **модули внутри `apps/api`** + процесс worker из того же `apps/api` (ADR-017: общие схема БД, конфиг и подключения). Требование ТЗ «не превращай в микросервисы на старте». Границы модулей сохраняются — выделить сервис потом = перенести папку.
 - `design-system` + `ui` → **`design-tokens` + `ui`**: токены общие для DOM и React Native, а компоненты — нет (RN не рендерит DOM).
 - `audio-engine` → **`player-core` + адаптеры** (`audio-web`, `audio-native`): логика одна, механизм воспроизведения — нативный для платформы (требование BRIEF_v2 §7).
 - `shared-types` → **`contracts`**: типы выводятся из схем валидации, а не пишутся вручную дважды.

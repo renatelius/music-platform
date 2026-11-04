@@ -22,6 +22,7 @@ describe('loadConfig', () => {
     expect(config.auth.cookiePath).toBe('/auth');
     expect(config.s3.forcePathStyle).toBe(true);
     expect(config.rateLimit).toEqual({ max: 300, windowMs: 60_000, keyPrefix: 'rl' });
+    expect(config.media).toEqual({ ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe' });
     expect(config.version).toMatch(/^\d+\.\d+\.\d+/);
   });
 

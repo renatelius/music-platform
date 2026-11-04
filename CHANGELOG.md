@@ -6,6 +6,7 @@
 ## [Unreleased]
 
 ### Добавлено
+- I4a, слой FFmpeg (`apps/api/src/media`): `probeAudio` — кодек, частота, битность, битрейт, длительность, обложка и теги через ffprobe; `analyzeAudio` — громкость EBU R128, true peak, ReplayGain, тишина и ошибки декодера за один проход; `checkMediaTools` — наличие ffmpeg, ffprobe и энкодеров aac/libopus/flac. Ошибки со стабильными кодами (`MediaError`). Тесты на синтетических файлах, которые генерирует сам FFmpeg. Настройки `FFMPEG_PATH` / `FFPROBE_PATH` (по умолчанию — из PATH). `setup.bat` проверяет FFmpeg и энкодеры, CI ставит FFmpeg. Решение: worker — второй процесс `apps/api` (уточнение ADR-017).
 - I4a, схема каталога и прав (`apps/api/src/db/schema.ts`): `sources`, `artists`, `releases`, `release_artists`, `tracks`, `track_artists`, `track_assets`, `track_loudness`, `track_rights`. У каждой записи каталога есть `source_id` + `external_id` с уникальностью — повторный импорт не создаёт дублей. У трека хранится формат исходника (потолок для рендиций и вход `classifyQuality`); у рендиции — метка качества и ключ S3; одна рендиция на кодек и битрейт. Права: лицензия, ссылка, обязательная атрибуция, режимы (стрим/офлайн/превью), территории, срок действия. Интеграционный тест `test/catalog-schema.test.ts`.
 
 ### Изменено
