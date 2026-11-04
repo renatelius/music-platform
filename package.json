@@ -1,0 +1,36 @@
+{
+  "name": "music-platform",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "check": "turbo run lint typecheck test build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "infra:up": "docker compose -f infrastructure/docker/compose.yaml --env-file .env up -d --wait --wait-timeout 180",
+    "infra:init": "docker compose -f infrastructure/docker/compose.yaml --env-file .env --profile init run --rm s3-init",
+    "infra:down": "docker compose -f infrastructure/docker/compose.yaml --env-file .env down",
+    "infra:ps": "docker compose -f infrastructure/docker/compose.yaml --env-file .env ps"
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-prettier": "catalog:",
+    "globals": "catalog:",
+    "prettier": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vitest": "catalog:"
+  }
+}

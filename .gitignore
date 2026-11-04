@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+vendor/
+
+# Builds
+dist/
+build/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+
+# Mobile
+ios/Pods/
+android/.gradle/
+android/app/build/
+*.keystore
+*.jks
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs & OS
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Local environment report (machine-specific)
+env-report.txt
+install-log.txt
+
+# Tooling / local reports
+.turbo/
+setup-report.txt
+*.local
+relocate-log.txt

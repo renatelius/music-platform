@@ -1,0 +1,14 @@
+{
+  "identities": [
+    {
+      "name": "mp-dev",
+      "credentials": [
+        {
+          "accessKey": "mp_dev_access",
+          "secretKey": "mp_dev_secret_change_me"
+        }
+      ],
+      "actions": ["Admin", "Read", "List", "Tagging", "Write"]
+    }
+  ]
+}

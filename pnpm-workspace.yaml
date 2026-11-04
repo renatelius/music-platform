@@ -1,0 +1,23 @@
+packages:
+  - apps/*
+  - packages/*
+  - tools/*
+
+# Single source of truth for shared dependency versions.
+# Use "catalog:" as the version in any package.json.
+catalog:
+  '@eslint/js': ^10.0.1
+  '@types/node': ^26.6.6
+  eslint: ^10.14.0
+  eslint-config-prettier: ^10.1.8
+  globals: ^17.14.0
+  prettier: ^3.9.10
+  turbo: ^2.11.10
+  # Pinned to 6.0.x: typescript-eslint does not support TypeScript 7 yet (see ADR-004).
+  typescript: ~6.0.3
+  typescript-eslint: ^8.72.1
+  vitest: ^5.1.0
+  zod: ^4.6.7
+
+# Do not fail install on dependencies with build scripts that are not explicitly approved.
+strictDepBuilds: false

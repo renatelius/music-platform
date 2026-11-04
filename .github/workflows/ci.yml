@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  TURBO_TELEMETRY_DISABLED: '1'
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm check
+
+  infrastructure:
+    name: Local infrastructure boots
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: cp .env.example .env
+      - run: docker compose -f infrastructure/docker/compose.yaml --env-file .env up -d --wait --wait-timeout 180
+      - run: docker compose -f infrastructure/docker/compose.yaml --env-file .env --profile init run --rm s3-init
+      - name: Check PostgreSQL extensions
+        run: |
+          docker compose -f infrastructure/docker/compose.yaml --env-file .env exec -T postgres \
+            psql -U mp -d mp_test -At -c "select count(*) from pg_extension where extname in ('vector','pg_trgm','citext','unaccent')" \
+            | grep -qx 4
+      - if: always()
+        run: docker compose -f infrastructure/docker/compose.yaml --env-file .env down -v

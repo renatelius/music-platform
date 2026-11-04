@@ -1,0 +1,98 @@
+name: music-platform
+
+# Local development infrastructure. All ports are bound to 127.0.0.1 only.
+# Start:  setup.bat  (or: pnpm infra:up && pnpm infra:init)
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set in .env}
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-54320}:5432'
+    volumes:
+      # PostgreSQL 18 images keep data under /var/lib/postgresql/<major>/
+      - pgdata:/var/lib/postgresql
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    shm_size: 256mb
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set in .env}
+    command: ['redis-server', '--appendonly', 'yes', '--requirepass', '${REDIS_PASSWORD}']
+    ports:
+      - '127.0.0.1:${REDIS_PORT:-63790}:6379'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "$${REDIS_PASSWORD}" --no-auth-warning ping | grep -q PONG']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  # S3-compatible object storage. MinIO CE was archived in 2026, see ADR-004.
+  s3:
+    image: chrislusf/seaweedfs:latest
+    command:
+      - server
+      - -dir=/data
+      - -s3
+      - -s3.port=8333
+      - -s3.config=/etc/seaweedfs/s3.json
+      - -master.volumeSizeLimitMB=1024
+    ports:
+      - '127.0.0.1:${S3_PORT:-8333}:8333'
+    volumes:
+      - s3data:/data
+      - ./seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+    healthcheck:
+      # Healthy = the S3 endpoint answers HTTP (an anonymous request gets 403, which is fine).
+      test: ['CMD-SHELL', 'wget -q -S -O /dev/null http://127.0.0.1:8333/ 2>&1 | grep -q "HTTP/"']
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 10s
+    restart: unless-stopped
+
+  # One-shot: creates buckets. Run with: pnpm infra:init
+  s3-init:
+    image: amazon/aws-cli:latest
+    profiles: ['init']
+    depends_on:
+      s3:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?set in .env}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?set in .env}
+      AWS_DEFAULT_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKETS: '${S3_BUCKET_MEDIA:-mp-media} ${S3_BUCKET_MASTERS:-mp-masters}'
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - >-
+        for b in $${S3_BUCKETS}; do
+        aws --endpoint-url http://s3:8333 s3api head-bucket --bucket "$$b" >/dev/null 2>&1
+        && echo "bucket $$b exists"
+        || aws --endpoint-url http://s3:8333 s3 mb "s3://$$b";
+        done
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - '127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025'
+      - '127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025'
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  s3data:
