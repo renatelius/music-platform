@@ -10,6 +10,7 @@ export const en = {
   'common.loading': 'Loading…',
   'common.save': 'Save changes',
   'common.retry': 'Try again',
+  'common.cancel': 'Cancel',
   'common.backToSignIn': 'Back to sign in',
 
   'theme.label': 'Theme',
@@ -108,9 +109,12 @@ export const en = {
   'account.sessions.unknownDevice': 'Unknown device',
   'account.sessions.lastActive': 'Last active {time}',
   'account.sessions.revoke': 'Sign out',
+  'account.sessions.revokeQuestion': 'Sign out of this device?',
   'account.danger.title': 'Sign out everywhere',
   'account.danger.text': 'Ends every session, including this one.',
   'account.danger.action': 'Sign out of all devices',
+  'account.danger.confirmText': 'You will be signed out on every device, including this one.',
+  'account.danger.confirm': 'Yes, sign out everywhere',
 
   'notFound.title': 'Page not found',
   'notFound.text': 'The page may have moved, or the link is wrong.',

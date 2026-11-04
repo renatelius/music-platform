@@ -11,6 +11,7 @@ export const ru: Messages = {
   'common.loading': 'Загрузка…',
   'common.save': 'Сохранить',
   'common.retry': 'Повторить',
+  'common.cancel': 'Отмена',
   'common.backToSignIn': 'Вернуться ко входу',
 
   'theme.label': 'Тема',
@@ -109,9 +110,12 @@ export const ru: Messages = {
   'account.sessions.unknownDevice': 'Неизвестное устройство',
   'account.sessions.lastActive': 'Активность: {time}',
   'account.sessions.revoke': 'Выйти',
+  'account.sessions.revokeQuestion': 'Выйти на этом устройстве?',
   'account.danger.title': 'Выйти везде',
   'account.danger.text': 'Завершает все сеансы, включая этот.',
   'account.danger.action': 'Выйти на всех устройствах',
+  'account.danger.confirmText': 'Вы выйдете на всех устройствах, включая это.',
+  'account.danger.confirm': 'Да, выйти везде',
 
   'notFound.title': 'Страница не найдена',
   'notFound.text': 'Возможно, она переехала или ссылка неверна.',

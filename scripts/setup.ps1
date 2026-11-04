@@ -132,8 +132,22 @@ Run-Step 'Format code (prettier --write)' { & pnpm format }
 Run-Step 'Lint + typecheck + test + build' { & pnpm check }
 Run-Step 'Migrate development database' { & pnpm db:migrate }
 
+# Smoke tests start their own servers. If dev.bat is running, the ports are taken and the
+# requests would reach the dev servers instead, so a passing result would prove nothing.
+function Test-PortBusy([string]$Port) {
+  $client = New-Object System.Net.Sockets.TcpClient
+  try {
+    $task = $client.ConnectAsync('127.0.0.1', [int]$Port)
+    return ($task.Wait(300) -and $client.Connected)
+  } catch { return $false } finally { $client.Dispose() }
+}
+
+$portBusyHint = 'already in use - is dev.bat running? Stop it (Ctrl+C) and run setup.bat again.'
+
 $apiPort = if ($envMap['API_PORT']) { $envMap['API_PORT'] } else { '4000' }
 Run-Step "API smoke test (GET http://127.0.0.1:$apiPort/health)" {
+  $busy = @(@($apiPort) | Where-Object { Test-PortBusy $_ })
+  if ($busy.Count -gt 0) { "Port $($busy -join ', ') $portBusyHint"; $global:LASTEXITCODE = 1; return }
   $apiDir = Join-Path $root 'apps\api'
   $out = Join-Path $env:TEMP 'mp-api-smoke.out.txt'
   $err = Join-Path $env:TEMP 'mp-api-smoke.err.txt'
@@ -159,6 +173,8 @@ Run-Step "API smoke test (GET http://127.0.0.1:$apiPort/health)" {
 
 $webPort = '3000'
 Run-Step "Web smoke test (http://127.0.0.1:$webPort/login and /api/health through the proxy)" {
+  $busy = @(@($apiPort, $webPort) | Where-Object { Test-PortBusy $_ })
+  if ($busy.Count -gt 0) { "Port $($busy -join ', ') $portBusyHint"; $global:LASTEXITCODE = 1; return }
   $apiDir = Join-Path $root 'apps\api'
   $webDir = Join-Path $root 'apps\web'
   $nextBin = Join-Path $webDir 'node_modules\next\dist\bin\next'
@@ -187,6 +203,8 @@ Run-Step "Web smoke test (http://127.0.0.1:$webPort/login and /api/health throug
     foreach ($proc in @($web, $api)) {
       if (-not $proc.HasExited) { & taskkill /PID $proc.Id /T /F 2>&1 | Out-Null }
     }
+    # taskkill returns 128 when the process exited on its own a moment earlier; that is not a test failure.
+    $global:LASTEXITCODE = 0
   }
   if ($login) { $login } else { 'Web app did not serve /login' }
   if ($health) { "GET /api/health (proxied) -> $health" } else { 'Proxy /api/health did not answer' }
