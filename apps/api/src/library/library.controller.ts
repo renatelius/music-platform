@@ -50,7 +50,7 @@ import { LibraryService, type MutationOptions, type SavedKindName } from './libr
 const IdParam = new ZodValidationPipe(Id);
 
 /** Shared by both controllers: who, where, and the Idempotency-Key of a mutation. */
-abstract class LibraryBase {
+export abstract class LibraryBase {
   protected abstract readonly library: LibraryService;
   protected abstract readonly config: AppConfig;
 

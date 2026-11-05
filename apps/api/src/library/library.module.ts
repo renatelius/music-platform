@@ -8,5 +8,6 @@ import { LibraryService } from './library.service.js';
   imports: [AuthModule],
   controllers: [LibraryController, PlaylistsController],
   providers: [LibraryService],
+  exports: [LibraryService],
 })
 export class LibraryModule {}

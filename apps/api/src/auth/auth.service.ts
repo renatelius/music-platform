@@ -12,6 +12,7 @@ import type {
   UserDto,
 } from '@mp/contracts';
 import { and, eq, gt, isNull } from 'drizzle-orm';
+import type { Redis } from 'ioredis';
 
 import { AuditService, type AuditContext } from '../audit/audit.service.js';
 import { ApiError } from '../common/api-error.js';
@@ -19,7 +20,7 @@ import { isUniqueViolation } from '../common/pg-errors.js';
 import type { AppConfig } from '../config/env.js';
 import type { Database } from '../db/client.js';
 import { emailTokens, sessions, users } from '../db/schema.js';
-import { APP_CONFIG, DB } from '../infra/tokens.js';
+import { APP_CONFIG, DB, REDIS } from '../infra/tokens.js';
 import { MailService } from '../mail/mail.service.js';
 import { renderAuthEmail } from '../mail/templates.js';
 import { hashPassword, needsRehash, verifyAgainstDummy, verifyPassword } from './password.js';
@@ -81,7 +82,15 @@ export class AuthService {
     @Inject(AccessTokens) private readonly accessTokens: AccessTokens,
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(MailService) private readonly mail: MailService,
+    @Inject(REDIS) private readonly redis: Redis,
   ) {}
+
+  /** Live channels of the user re-check their sessions: a sign-out closes them (I7b). */
+  private sessionsChanged(userId: string): void {
+    this.redis
+      .publish(`user:${userId}`, JSON.stringify({ type: 'sessions' }))
+      .catch(() => undefined);
+  }
 
   // ---------------------------------------------------------------- sign-up / sign-in
 
@@ -180,6 +189,7 @@ export class AuthService {
         familyId: outcome.session.familyId,
       });
       this.logger.warn(`Refresh token reuse detected, session family revoked`);
+      this.sessionsChanged(outcome.session.userId);
       throw unauthenticated('Session has been revoked. Please sign in again.');
     }
     if (outcome.kind === 'stale') {
@@ -234,6 +244,7 @@ export class AuthService {
     }
     if (target === undefined) return;
     await this.revokeFamily(target.familyId);
+    this.sessionsChanged(target.userId);
     await this.audit.record('auth.logout', meta, target.userId);
   }
 
@@ -242,6 +253,7 @@ export class AuthService {
       .update(sessions)
       .set({ revokedAt: new Date() })
       .where(and(eq(sessions.userId, auth.userId), isNull(sessions.revokedAt)));
+    this.sessionsChanged(auth.userId);
     await this.audit.record('auth.logout_all', meta, auth.userId);
   }
 
@@ -282,6 +294,7 @@ export class AuthService {
       .limit(1);
     if (row === undefined) throw new ApiError('NOT_FOUND', { detail: 'Session not found.' });
     await this.revokeFamily(row.familyId);
+    this.sessionsChanged(auth.userId);
     await this.audit.record('auth.session_revoked', meta, auth.userId, { sessionId });
   }
 
@@ -348,6 +361,7 @@ export class AuthService {
         .set({ revokedAt: now })
         .where(and(eq(sessions.userId, userId), isNull(sessions.revokedAt)));
     });
+    this.sessionsChanged(userId);
     await this.audit.record('auth.password_reset', meta, userId);
   }
 

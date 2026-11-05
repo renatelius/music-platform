@@ -5,6 +5,13 @@
 
 ## [Unreleased]
 
+### I7b, шаг 1 — сервер синхронизации (05.11)
+- `GET /sync/changes?since=` — изменения библиотеки по порядку, страницами до 500; `410 GONE`, если версия неизвестна или журнал её уже не хранит (90 дней).
+- `POST /sync/ws-ticket` + `WS /ws?ticket=` — канал уведомлений `{type: "hello" | "changed", seq}`; билет одноразовый (30 с), только из веб-приложения или нативного клиента (Origin), Redis pub/sub между экземплярами API, ping 25 с, закрытие с кодом 4401 при выходе из аккаунта.
+- История: `POST /history/plays` (пачкой до 50, без дублей по `clientEventId`, при выключенной истории не пишется), `GET /history/recent`, `DELETE /history`.
+- `GET/PUT /me/settings` — настройки воспроизведения и «Записывать историю» на сервере; изменение — новая версия библиотеки.
+- Миграция: `play_events`, `user_settings`. Зависимость `ws`.
+
 ### Безопасность (P0, ADR-022)
 - Пароль тестового QA-аккаунта, опубликованный в PROJECT_STATUS, сменён; учётные данные — только в локальном `qa-account.local` (в `.gitignore`).
 - API не запускается в production, если в `DATABASE_URL`, `REDIS_URL`, `S3_*`, `SMTP_PASSWORD` или `AUTH_JWT_SECRET` осталась заглушка из `.env.example`.

@@ -7,6 +7,7 @@ import { DocsModule } from './docs/docs.module.js';
 import { HealthModule } from './health/health.module.js';
 import { InfraModule } from './infra/infra.module.js';
 import { LibraryModule } from './library/library.module.js';
+import { SyncModule } from './sync/sync.module.js';
 
 @Module({})
 export class AppModule {
@@ -19,6 +20,7 @@ export class AppModule {
         AuthModule,
         CatalogModule,
         LibraryModule,
+        SyncModule,
         ...(config.api.docs ? [DocsModule] : []),
       ],
     };

@@ -47,14 +47,14 @@ const {
 // ---------------------------------------------------------------- SQL building blocks
 
 /** Timestamps as ISO-8601 UTC with milliseconds (IsoDateTime). */
-const ISO = (column: string) =>
+export const ISO = (column: string) =>
   `to_char(${column} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 /** Full precision for cursors: microseconds, so two rows never share a cursor. */
 const EXACT = (column: string) =>
   `to_char(${column} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
 
 /** LibraryTrack: the catalog track when playable now, otherwise a stub marked unavailable. */
-const LIBRARY_TRACK = (t: string) =>
+export const LIBRARY_TRACK = (t: string) =>
   `CASE WHEN ${visible(t)} THEN (${trackJson(t)}::jsonb || '{"available": true}'::jsonb)` +
   ` ELSE jsonb_build_object('available', false, 'id', ${t}.id, 'title', ${t}.title,` +
   ` 'durationMs', coalesce(${t}.duration_ms, 0),` +
@@ -162,14 +162,15 @@ export type SavedKindName = keyof typeof KINDS;
 
 // ---------------------------------------------------------------- mutations
 
-interface Mutation {
+export interface Mutation {
   readonly tx: CatalogTx;
   readonly userId: string;
   /** Version of the library now (after the changes made so far in this request). */
   seq(): number;
   /** Records one change: +1 version, one row in the change log. */
   change(
-    entity: 'track_like' | 'release_save' | 'artist_follow' | 'playlist' | 'playlist_item',
+    entity:
+      'track_like' | 'release_save' | 'artist_follow' | 'playlist' | 'playlist_item' | 'settings',
     entityId: string,
     op: 'upsert' | 'delete',
     payload?: Record<string, unknown>,
@@ -205,7 +206,8 @@ export class LibraryService {
     @Inject(REDIS) private readonly redis: Redis,
   ) {}
 
-  private async mutate<T extends z.ZodType>(
+  /** One change of the user's data, as described above. Also used by settings (I7b). */
+  async mutate<T extends z.ZodType>(
     options: MutationOptions,
     schema: T,
     work: (m: Mutation) => Promise<z.output<T>>,

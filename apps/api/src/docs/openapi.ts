@@ -4,6 +4,7 @@ import {
   AddPlaylistItemsRequest,
   AddPlaylistItemsResult,
   ArtistDetail,
+  ClearHistoryResult,
   AuthResponse,
   CatalogHome,
   CreatePlaylistRequest,
@@ -25,6 +26,10 @@ import {
   PlaylistMutation,
   PlaylistSummary,
   ProblemDetails,
+  RecentPlays,
+  RecentQuery,
+  RecordPlaysRequest,
+  RecordPlaysResult,
   RefreshRequest,
   RegisterRequest,
   ReleaseDetail,
@@ -35,11 +40,17 @@ import {
   SessionList,
   SuggestQuery,
   SuggestResults,
+  SyncChangesPage,
+  SyncChangesQuery,
   TrackDto,
   TrackStream,
   UpdatePlaylistRequest,
   UpdateProfileRequest,
+  UpdateUserSettingsRequest,
   UserDto,
+  UserSettings,
+  UserSettingsMutation,
+  WsTicket,
 } from '@mp/contracts';
 import { z } from 'zod';
 
@@ -441,6 +452,75 @@ export const OPERATIONS: readonly Operation[] = [
     params: itemParams,
     responses: { 200: { description: 'Library version', schema: LibraryChange } },
   },
+  {
+    method: 'get',
+    path: '/sync/changes',
+    tag: 'sync',
+    summary:
+      'Changes of the library after version `since`, oldest first; ask again while `hasMore`. ' +
+      '410 GONE: the version is unknown or older than the kept log (90 days) — reload everything',
+    auth: true,
+    query: SyncChangesQuery,
+    responses: {
+      200: { description: 'Changes', schema: SyncChangesPage },
+      410: { description: 'GONE', schema: ProblemDetails },
+    },
+  },
+  {
+    method: 'post',
+    path: '/sync/ws-ticket',
+    tag: 'sync',
+    summary:
+      'One-time ticket (30 s) for the live channel `GET /ws?ticket=` (WebSocket). The channel ' +
+      'sends `{type:"hello"|"changed", seq}`; data always comes from /sync/changes',
+    auth: true,
+    responses: { 200: { description: 'Ticket', schema: WsTicket } },
+  },
+  {
+    method: 'post',
+    path: '/history/plays',
+    tag: 'history',
+    summary:
+      'Report plays (up to 50). A repeated `clientEventId` is skipped; with history off ' +
+      'nothing is recorded',
+    auth: true,
+    body: RecordPlaysRequest,
+    responses: { 202: { description: 'Accepted', schema: RecordPlaysResult } },
+  },
+  {
+    method: 'get',
+    path: '/history/recent',
+    tag: 'history',
+    summary: 'Recently played tracks, newest first (from 30 s or half a track; repeats merged)',
+    auth: true,
+    query: RecentQuery,
+    responses: { 200: { description: 'Recent plays', schema: RecentPlays } },
+  },
+  {
+    method: 'delete',
+    path: '/history',
+    tag: 'history',
+    summary: 'Clear the listening history',
+    auth: true,
+    responses: { 200: { description: 'Cleared', schema: ClearHistoryResult } },
+  },
+  {
+    method: 'get',
+    path: '/me/settings',
+    tag: 'account',
+    summary: 'Settings that follow the user: playback, history on/off',
+    auth: true,
+    responses: { 200: { description: 'Settings', schema: UserSettings } },
+  },
+  {
+    method: 'put',
+    path: '/me/settings',
+    tag: 'account',
+    summary: `Change settings (a new library version, other devices are told).${IDEMPOTENT}`,
+    auth: true,
+    body: UpdateUserSettingsRequest,
+    responses: { 200: { description: 'Saved', schema: UserSettingsMutation } },
+  },
 ];
 
 type JsonSchema = Record<string, unknown>;
@@ -537,6 +617,11 @@ export function buildOpenApi(version: string): JsonSchema {
         description: 'Liked tracks, saved releases, followed artists. Mutations return `seq`',
       },
       { name: 'playlists', description: 'The user’s own playlists. Mutations return `seq`' },
+      {
+        name: 'sync',
+        description: 'Change log and live channel: one data path (REST), WebSocket only notifies',
+      },
+      { name: 'history', description: 'Listening history: reports, recent plays, clearing' },
     ],
     components: {
       securitySchemes: { bearer: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },

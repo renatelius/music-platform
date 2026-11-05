@@ -67,12 +67,14 @@
     "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
+    "ws": "^8.18.3",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@mp/config": "workspace:*",
     "@types/node": "catalog:",
     "@types/pg": "^8.23.1",
+    "@types/ws": "^8.18.1",
     "drizzle-kit": "^0.31.11",
     "eslint": "catalog:",
     "typescript": "catalog:",

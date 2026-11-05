@@ -525,6 +525,49 @@ export const playlistItems = pgTable(
   ],
 );
 
+/**
+ * Listening history (I7b). `client_event_id` makes a repeated report (offline queue, retry)
+ * harmless. Recent plays read it newest first per user.
+ */
+export const playEvents = pgTable(
+  'play_events',
+  {
+    id: id(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    trackId: uuid('track_id')
+      .notNull()
+      .references(() => tracks.id, { onDelete: 'cascade' }),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+    playedMs: integer('played_ms').notNull(),
+    completed: boolean('completed').notNull(),
+    skipped: boolean('skipped').notNull(),
+    /** Sign-in session (device) that reported it; no foreign key, sessions are cleaned up. */
+    sessionId: uuid('session_id'),
+    contextType: text('context_type'),
+    contextId: uuid('context_id'),
+    clientEventId: uuid('client_event_id').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique('play_events_user_client_event_unique').on(t.userId, t.clientEventId),
+    index('play_events_user_started_idx').on(t.userId, t.startedAt.desc()),
+    index('play_events_track_id_idx').on(t.trackId),
+    check('play_events_played_ms_nonnegative', sql`${t.playedMs} >= 0`),
+  ],
+);
+
+/** Settings that follow the user to every device (playback, history on/off). */
+export const userSettings = pgTable('user_settings', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  playback: jsonb('playback').$type<Record<string, unknown>>(),
+  historyEnabled: boolean('history_enabled').notNull().default(true),
+  updatedAt: updatedAt(),
+});
+
 /** Stored answers of POST requests with an Idempotency-Key, for safe retries (24 h). */
 export const idempotencyKeys = pgTable(
   'idempotency_keys',

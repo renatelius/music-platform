@@ -43,6 +43,13 @@
       "when": 1793877830219,
       "tag": "0005_curved_silhouette",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793883515584,
+      "tag": "0006_skinny_richard_fisk",
+      "breakpoints": true
     }
   ]
 }

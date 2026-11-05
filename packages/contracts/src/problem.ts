@@ -12,6 +12,8 @@ export const ErrorCode = z.enum([
   'DUPLICATE_TRACKS',
   /** A per-user limit (likes, playlists, playlist length) would be exceeded. */
   'LIMIT_EXCEEDED',
+  /** The version a client syncs from is unknown or no longer in the log: reload everything. */
+  'GONE',
   'PAYLOAD_TOO_LARGE',
   'UNSUPPORTED_MEDIA_TYPE',
   'RATE_LIMITED',
@@ -50,6 +52,7 @@ const STATUS_BY_CODE: Record<ErrorCode, number> = {
   CONFLICT: 409,
   DUPLICATE_TRACKS: 409,
   LIMIT_EXCEEDED: 409,
+  GONE: 410,
   PAYLOAD_TOO_LARGE: 413,
   UNSUPPORTED_MEDIA_TYPE: 415,
   RATE_LIMITED: 429,
@@ -66,6 +69,7 @@ const TITLE_BY_CODE: Record<ErrorCode, string> = {
   CONFLICT: 'Resource conflict',
   DUPLICATE_TRACKS: 'Already in the playlist',
   LIMIT_EXCEEDED: 'Limit reached',
+  GONE: 'No longer available',
   PAYLOAD_TOO_LARGE: 'Payload too large',
   UNSUPPORTED_MEDIA_TYPE: 'Unsupported media type',
   RATE_LIMITED: 'Too many requests',
