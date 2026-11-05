@@ -86,6 +86,12 @@ export class WebAudioEngine implements AudioEngine {
   private readonly handlers: DeckHandlers;
   /** ReplayGain changed after load (setGain), by track key. */
   private readonly gainOverride = new Map<string, number>();
+  /** A seek waiting for the volume to fade out (B5: no click); the last target wins. */
+  private pendingSeek: {
+    readonly deck: Deck;
+    sec: number;
+    readonly timer: ReturnType<typeof setTimeout>;
+  } | null = null;
 
   constructor(options: WebAudioEngineOptions = {}) {
     this.fetchImpl = options.fetch ?? ((input, init) => fetch(input, init));
@@ -188,6 +194,9 @@ export class WebAudioEngine implements AudioEngine {
     const current = this.current;
     if (current === null || this.paused) return;
     this.paused = true;
+    // A seek still fading out lands now, at the paused position.
+    const seek = this.takePendingSeek();
+    if (seek?.deck === current) this.applySeek(current, seek.sec);
     const ctx = this.context();
     this.rampVolume(0);
     if (this.suspendTimer !== null) clearTimeout(this.suspendTimer);
@@ -206,17 +215,32 @@ export class WebAudioEngine implements AudioEngine {
   seek(positionMs: number): void {
     const current = this.current;
     if (current === null) return;
-    // A seek cancels a transition in progress: the next track is scheduled again later.
-    this.unscheduleNext();
-    for (const deck of this.outgoing) deck.dispose();
-    this.outgoing = [];
-    this.resetGain(current);
-    const seconds = positionMs / 1000;
+    const seconds = Math.max(0, positionMs / 1000);
     if (this.paused || !current.isStarted()) {
-      current.setOffset(seconds);
+      this.takePendingSeek();
+      this.applySeek(current, seconds);
       return;
     }
-    current.start(this.context().currentTime + 0.005, seconds);
+    // Sounding: fade out, jump, fade back in (B5: a jump at full volume clicks). Dragging the
+    // progress bar sends many seeks; they share one fade and the last position wins.
+    if (this.pendingSeek?.deck === current) {
+      this.pendingSeek.sec = seconds;
+      return;
+    }
+    this.takePendingSeek();
+    this.rampVolume(0);
+    const timer = setTimeout(
+      () => {
+        const pending = this.pendingSeek;
+        if (pending?.timer !== timer) return;
+        this.pendingSeek = null;
+        if (this.current !== pending.deck || this.paused) return;
+        this.applySeek(pending.deck, pending.sec);
+        this.rampVolume(this.targetVolume());
+      },
+      DECLICK_SEC * 1000 + 5,
+    );
+    this.pendingSeek = { deck: current, sec: seconds, timer };
   }
 
   stop(): void {
@@ -227,12 +251,12 @@ export class WebAudioEngine implements AudioEngine {
 
   setVolume(volume: number): void {
     this.volume = volume;
-    if (!this.paused) this.rampVolume(this.targetVolume());
+    if (!this.paused && this.pendingSeek === null) this.rampVolume(this.targetVolume());
   }
 
   setMuted(muted: boolean): void {
     this.muted = muted;
-    if (!this.paused) this.rampVolume(this.targetVolume());
+    if (!this.paused && this.pendingSeek === null) this.rampVolume(this.targetVolume());
   }
 
   /** Left/right balance, −1..1 (ТЗ v3 §6.2). */
@@ -245,7 +269,7 @@ export class WebAudioEngine implements AudioEngine {
   /** Sleep-timer fade, 0..1; does not change the volume the user set. */
   setFade(gain: number): void {
     this.fade = Math.min(Math.max(Number.isFinite(gain) ? gain : 1, 0), 1);
-    if (!this.paused) this.rampVolume(this.targetVolume());
+    if (!this.paused && this.pendingSeek === null) this.rampVolume(this.targetVolume());
   }
 
   setGain(key: string, gainDb: number): void {
@@ -260,6 +284,7 @@ export class WebAudioEngine implements AudioEngine {
   }
 
   positionMs(): number {
+    if (this.pendingSeek !== null) return this.pendingSeek.sec * 1000;
     return (this.current?.positionSec() ?? 0) * 1000;
   }
 
@@ -524,13 +549,62 @@ export class WebAudioEngine implements AudioEngine {
     this.gainOverride.delete(next.track.key);
   }
 
+  /** Unloads everything. Sounding decks fade out first (B5: "next" mid-track must not click). */
   private clearAll(): void {
-    this.cancelNext();
-    for (const deck of this.outgoing) deck.dispose();
+    this.takePendingSeek();
+    const next = this.next;
+    this.next = null;
+    if (next !== null) {
+      next.abort.abort();
+      if (next.deck !== null) this.retire(next.deck);
+    }
+    for (const deck of this.outgoing) this.retire(deck);
     this.outgoing = [];
-    this.current?.dispose();
+    if (this.current !== null) this.retire(this.current);
     this.current = null;
     this.gainOverride.clear();
+  }
+
+  /** Fades a sounding deck out over DECLICK_SEC, then disposes it; a silent one goes at once. */
+  private retire(deck: Deck): void {
+    const ctx = this.ctx;
+    if (ctx === null || this.paused || !deck.isStarted()) {
+      deck.dispose();
+      return;
+    }
+    const gain = deck.output.gain;
+    const now = ctx.currentTime;
+    gain.cancelScheduledValues(now);
+    gain.setValueAtTime(gain.value, now);
+    gain.linearRampToValueAtTime(0, now + DECLICK_SEC);
+    // A retired deck is neither current nor next, so its own events are ignored meanwhile.
+    setTimeout(
+      () => {
+        deck.dispose();
+      },
+      DECLICK_SEC * 1000 + 20,
+    );
+  }
+
+  private takePendingSeek(): { readonly deck: Deck; readonly sec: number } | null {
+    const pending = this.pendingSeek;
+    if (pending === null) return null;
+    clearTimeout(pending.timer);
+    this.pendingSeek = null;
+    return pending;
+  }
+
+  /** Moves `deck` to `seconds`. Cancels a transition in progress: it is scheduled again later. */
+  private applySeek(deck: Deck, seconds: number): void {
+    this.unscheduleNext();
+    for (const outgoing of this.outgoing) outgoing.dispose();
+    this.outgoing = [];
+    this.resetGain(deck);
+    if (this.paused || !deck.isStarted()) {
+      deck.setOffset(seconds);
+      return;
+    }
+    deck.start(this.context().currentTime + 0.005, seconds);
   }
 
   private onDeckEnded(deck: Deck): void {

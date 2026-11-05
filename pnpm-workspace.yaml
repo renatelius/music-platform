@@ -32,7 +32,9 @@ allowBuilds:
   esbuild: true
   sharp: true
   '@tailwindcss/oxide': true
-  msgpackr-extract: set this to true or false
+  # Not needed: native prebuilds come from @msgpackr-extract/* optional packages
+  # (msgpackr via BullMQ); the install script only rebuilds when a prebuild is missing.
+  msgpackr-extract: false
 
 # Fresh releases we adopted before pnpm's minimum release age (reviewed manually).
 minimumReleaseAgeExclude:

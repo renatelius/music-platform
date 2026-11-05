@@ -327,4 +327,45 @@ describe('Player', () => {
     player.seekBy(-500_000);
     expect(engine.calls.at(-1)).toBe('seek 0');
   });
+
+  // ТЗ v3 §6.4 п. 4: a manual change with crossfade on switches at once (the fade is only for
+  // automatic transitions), before the fade and while it runs.
+  it('switches at once on a manual "next" with crossfade on, before or during the fade', async () => {
+    player.setSettings({ crossfadeMs: 6000 });
+    await playing([track('a', 'r1'), track('b', 'r2'), track('c', 'r3'), track('d', 'r4')]);
+    expect(engine.prepared?.transition).toEqual({ kind: 'crossfade', durationMs: 6000 });
+
+    // Mid-track: the prepared crossfade is dropped, "b" starts from its beginning right away.
+    engine.position = 90_000;
+    player.next();
+    await settle();
+    expect(engine.calls.slice(-2)).toEqual(['stop', 'load /media/b @0']);
+    expect(player.getState().current?.track.id).toBe('b');
+    expect(engine.prepared?.track?.url).toBe('/media/c');
+    expect(engine.prepared?.transition).toEqual({ kind: 'crossfade', durationMs: 6000 });
+
+    // During the fade into "c" ("c" is already current): "next" goes on to "d", not back to "c".
+    engine.emit({ type: 'playing', key: engine.key });
+    engine.emit({ type: 'transitioned', key: engine.preparedKey });
+    await settle();
+    expect(player.getState().current?.track.id).toBe('c');
+    player.next();
+    await settle();
+    expect(engine.calls.slice(-2)).toEqual(['stop', 'load /media/d @0']);
+    expect(player.getState().current?.track.id).toBe('d');
+    expect(engine.prepared?.track).toBeNull();
+  });
+
+  // ТЗ v3 §6.4 п. 5: during a crossfade the incoming track is current, a seek moves within it.
+  it('seeks within the incoming track during a crossfade', async () => {
+    player.setSettings({ crossfadeMs: 6000 });
+    await playing([track('a', 'r1'), track('b', 'r2'), track('c', 'r3')]);
+    engine.emit({ type: 'transitioned', key: engine.preparedKey });
+    await settle();
+    const before = engine.calls.length;
+    player.seek(10_000);
+    expect(engine.calls.slice(before)).toEqual(['seek 10000']);
+    expect(player.getState()).toMatchObject({ status: 'playing', index: 1 });
+    expect(engine.prepared?.track?.url).toBe('/media/c');
+  });
 });
