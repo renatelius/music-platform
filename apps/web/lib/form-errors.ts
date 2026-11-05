@@ -52,6 +52,8 @@ export function apiErrorMessage(
       return context === 'login' ? t('errors.invalidCredentials') : t('errors.sessionExpired');
     case 'CONFLICT':
       return context === 'register' ? t('errors.emailTaken') : t('errors.unknown');
+    case 'LIMIT_EXCEEDED':
+      return t('errors.limit');
     case 'BAD_REQUEST':
       return context === 'link' ? t('errors.invalidLink') : t('errors.unknown');
     case null:

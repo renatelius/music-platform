@@ -242,3 +242,26 @@ export const IconSparkle = (p: IconProps) => (
     <path d="M18.5 3v3M17 4.5h3" />
   </Svg>
 );
+export const IconHeart = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20Z" />
+  </Svg>
+);
+export const IconHeartFilled = (p: IconProps) => (
+  <Svg {...p}>
+    <path
+      d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20Z"
+      fill="currentColor"
+    />
+  </Svg>
+);
+export const IconPlus = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 5v14M5 12h14" />
+  </Svg>
+);
+export const IconLibrary = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M5 4v16M9.5 4v16M14 4.5l5 15" />
+  </Svg>
+);

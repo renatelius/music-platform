@@ -11,6 +11,7 @@ import {
   PlayActions,
   TrackList,
 } from '../../../../components/catalog-ui';
+import { SaveButton } from '../../../../components/library-ui';
 import { useAuth } from '../../../../lib/auth-context';
 import { countLabel, formatTotalDuration, releaseYear } from '../../../../lib/catalog';
 import { useI18n } from '../../../../lib/i18n-context';
@@ -51,8 +52,9 @@ function Release({ release }: { release: ReleaseDetail }) {
               <ExternalLink href={release.url}>{t('catalog.sourcePage')}</ExternalLink>
             </p>
           ) : null}
-          <div className="mt-5">
+          <div className="mt-5 flex flex-wrap items-start gap-2">
             <PlayActions tracks={release.tracks} />
+            <SaveButton kind="releases" id={release.id} />
           </div>
         </div>
       </header>

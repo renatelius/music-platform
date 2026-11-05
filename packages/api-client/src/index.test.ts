@@ -226,3 +226,76 @@ describe('ApiClient', () => {
     );
   });
 });
+
+describe('ApiClient library', () => {
+  const ID = '01a1a917-dc74-7cb7-9ab6-08f7f6b7e47c';
+  const playlist = {
+    id: ID,
+    name: 'Night drive',
+    description: null,
+    trackCount: 0,
+    durationMs: 0,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  it('likes and unlikes with PUT and DELETE and returns the library version', async () => {
+    const seen: string[] = [];
+    const url = await serve((req, _body, res) => {
+      if (req.url === '/auth/login') {
+        json(res, 200, auth('t'));
+        return;
+      }
+      seen.push(`${req.method ?? ''} ${req.url ?? ''} ${req.headers.authorization ?? ''}`);
+      json(res, 200, { seq: seen.length + 6 });
+    });
+    const client = new ApiClient({ baseUrl: url });
+    await client.login({ email: 'a@b.test', password: 'secret-value' });
+    expect(await client.setInLibrary('tracks', ID, true)).toBe(7);
+    expect(await client.setInLibrary('releases', ID, false)).toBe(8);
+    expect(seen).toEqual([
+      `PUT /library/tracks/${ID} Bearer t`,
+      `DELETE /library/releases/${ID} Bearer t`,
+    ]);
+  });
+
+  it('sends one Idempotency-Key per call and keeps it when retrying after a refresh', async () => {
+    const keys: (string | undefined)[] = [];
+    let first = true;
+    const url = await serve((req, _body, res) => {
+      if (req.url === '/auth/login') json(res, 200, auth('old'));
+      else if (req.url === '/auth/refresh') json(res, 200, auth('new'));
+      else if (req.url === '/playlists') {
+        keys.push(req.headers['idempotency-key'] as string | undefined);
+        if (first) {
+          first = false;
+          json(res, 401, problem(401, 'UNAUTHENTICATED'));
+        } else json(res, 201, { seq: 1, playlist });
+      }
+    });
+    const client = new ApiClient({ baseUrl: url });
+    await client.login({ email: 'a@b.test', password: 'secret-value' });
+    const created = await client.createPlaylist({ name: 'Night drive' });
+    expect(created.playlist.id).toBe(ID);
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(keys[1]).toBe(keys[0]);
+    await client.createPlaylist({ name: 'Another' });
+    expect(keys[2]).not.toBe(keys[0]);
+  });
+
+  it('pages playlist items and reports duplicates by code', async () => {
+    const url = await serve((req, _body, res) => {
+      if (req.url === '/auth/login') json(res, 200, auth('t'));
+      else if (req.url === `/playlists/${ID}/items?cursor=abc&limit=2`)
+        json(res, 200, { items: [], nextCursor: null });
+      else json(res, 409, problem(409, 'DUPLICATE_TRACKS'));
+    });
+    const client = new ApiClient({ baseUrl: url });
+    await client.login({ email: 'a@b.test', password: 'secret-value' });
+    expect(await client.playlistItems(ID, 'abc', 2)).toEqual({ items: [], nextCursor: null });
+    const error = await client.addToPlaylist(ID, { trackIds: [ID] }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiRequestError);
+    expect((error as ApiRequestError).code).toBe('DUPLICATE_TRACKS');
+  });
+});

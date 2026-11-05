@@ -33,6 +33,7 @@ import { apiErrorMessage } from '../lib/form-errors';
 import { useI18n } from '../lib/i18n-context';
 import { isActive, usePlayer, usePlayerState } from '../lib/player-context';
 import type { Loadable } from '../lib/use-api';
+import { AddToPlaylistButton, HeartButton } from './library-ui';
 
 // ---------------------------------------------------------------- building blocks
 
@@ -212,11 +213,23 @@ export function TrackList({
   tracks,
   numbered = false,
   showRelease = false,
+  rowKey = (track) => track.id,
+  rowActions,
+  onReorder,
 }: {
   tracks: readonly TrackDto[];
   /** Release page: numbers from the release; elsewhere the position in the list. */
   numbered?: boolean;
   showRelease?: boolean;
+  /** A playlist may hold the same track twice: its rows are keyed by item. */
+  rowKey?: (track: TrackDto, index: number) => string;
+  /** Extra buttons of a row (playlist: move, remove). */
+  rowActions?: (track: TrackDto, index: number) => ReactNode;
+  /**
+   * Rows can be dragged to a new place (playlist, with a mouse). Buttons stay the way for
+   * keyboards, screen readers and touch screens.
+   */
+  onReorder?: (from: number, to: number) => void;
 }) {
   const { t } = useI18n();
   const { player, playTracks, togglePlay } = usePlayer();
@@ -225,6 +238,12 @@ export function TrackList({
   const active = isActive(state);
   // Announced to screen readers and shown briefly: adding to the queue changes nothing on screen.
   const [notice, setNotice] = useState('');
+  const [dragging, setDragging] = useState<number | null>(null);
+  const [over, setOver] = useState<number | null>(null);
+  const endDrag = () => {
+    setDragging(null);
+    setOver(null);
+  };
   const queueAction =
     'inline-flex size-8 items-center justify-center rounded-full text-fg-muted transition-colors hover:bg-surface-hover hover:text-fg disabled:pointer-events-none disabled:opacity-40';
   return (
@@ -239,12 +258,49 @@ export function TrackList({
             isCurrent && active ? t('player.pause') : t('player.playTrack', { title: track.title });
           return (
             <li
-              key={track.id}
-              id={`track-${track.id}`}
+              key={rowKey(track, index)}
+              id={`track-${rowKey(track, index)}`}
               aria-current={isCurrent ? 'true' : undefined}
+              draggable={onReorder !== undefined}
+              onDragStart={
+                onReorder === undefined
+                  ? undefined
+                  : (event) => {
+                      event.dataTransfer.effectAllowed = 'move';
+                      event.dataTransfer.setData('text/plain', track.title);
+                      setDragging(index);
+                    }
+              }
+              onDragOver={
+                onReorder === undefined || dragging === null
+                  ? undefined
+                  : (event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = 'move';
+                      if (over !== index) setOver(index);
+                    }
+              }
+              onDrop={
+                onReorder === undefined || dragging === null
+                  ? undefined
+                  : (event) => {
+                      event.preventDefault();
+                      if (dragging !== index) onReorder(dragging, index);
+                      endDrag();
+                    }
+              }
+              onDragEnd={onReorder === undefined ? undefined : endDrag}
               className={cn(
                 'group grid grid-cols-[2rem_minmax(0,1fr)_auto_auto] items-start gap-x-2 rounded-xl px-2 py-2.5 transition-colors hover:bg-surface sm:gap-x-3 sm:px-3',
                 isCurrent && 'bg-surface',
+                onReorder !== undefined && 'cursor-grab active:cursor-grabbing',
+                dragging === index && 'opacity-40',
+                over === index &&
+                  dragging !== null &&
+                  dragging !== index &&
+                  (dragging < index
+                    ? 'shadow-[inset_0_-2px_0_var(--mp-accent)]'
+                    : 'shadow-[inset_0_2px_0_var(--mp-accent)]'),
               )}
             >
               <button
@@ -324,34 +380,42 @@ export function TrackList({
                 </span>
                 <QualityLabel quality={track.quality} />
               </div>
-              {/* B7 (ТЗ v3 §6.2, §6.4 п. 9): queue actions; always visible on touch screens. */}
-              <div className="flex items-center sm:opacity-0 sm:transition-opacity sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
-                <button
-                  type="button"
-                  disabled={player === null}
-                  onClick={() => {
-                    player?.addNext([track]);
-                    setNotice(t('player.addedNext', { title: track.title }));
-                  }}
-                  aria-label={`${t('player.playNext')}: ${track.title}`}
-                  title={t('player.playNext')}
-                  className={queueAction}
-                >
-                  <IconNext className="size-4" />
-                </button>
-                <button
-                  type="button"
-                  disabled={player === null}
-                  onClick={() => {
-                    player?.append([track]);
-                    setNotice(t('player.addedToQueue', { title: track.title }));
-                  }}
-                  aria-label={`${t('player.addToQueue')}: ${track.title}`}
-                  title={t('player.addToQueue')}
-                  className={queueAction}
-                >
-                  <IconQueue className="size-4" />
-                </button>
+              {/*
+                Row actions. Phones: a second line under the title, always visible (B7). Wider
+                screens: a column; the heart stays, the rest shows on hover and focus.
+              */}
+              <div className="col-span-3 col-start-2 -mt-1 flex items-center sm:col-span-1 sm:col-start-auto sm:mt-0">
+                <HeartButton trackId={track.id} title={track.title} />
+                <div className="flex items-center sm:opacity-0 sm:transition-opacity sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
+                  <AddToPlaylistButton trackId={track.id} title={track.title} />
+                  <button
+                    type="button"
+                    disabled={player === null}
+                    onClick={() => {
+                      player?.addNext([track]);
+                      setNotice(t('player.addedNext', { title: track.title }));
+                    }}
+                    aria-label={`${t('player.playNext')}: ${track.title}`}
+                    title={t('player.playNext')}
+                    className={queueAction}
+                  >
+                    <IconNext className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={player === null}
+                    onClick={() => {
+                      player?.append([track]);
+                      setNotice(t('player.addedToQueue', { title: track.title }));
+                    }}
+                    aria-label={`${t('player.addToQueue')}: ${track.title}`}
+                    title={t('player.addToQueue')}
+                    className={queueAction}
+                  >
+                    <IconQueue className="size-4" />
+                  </button>
+                  {rowActions?.(track, index)}
+                </div>
               </div>
             </li>
           );

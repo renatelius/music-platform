@@ -8,6 +8,7 @@ import { useI18n } from '../../lib/i18n-context';
 import { trapFocus } from '../../lib/focus-trap';
 import { usePlayerState, usePosition } from '../../lib/player-context';
 import { Cover } from '../catalog-ui';
+import { AddToPlaylistButton, HeartButton } from '../library-ui';
 import {
   ControlButton,
   PlayerError,
@@ -168,8 +169,10 @@ export function FullPlayer({
               <p className="mt-1 truncate text-fg-muted">
                 {artistNames(track.artists)} · {track.release.title}
               </p>
-              <div className="mt-2 flex justify-center">
+              <div className="mt-2 flex items-center justify-center gap-2">
+                <HeartButton trackId={track.id} title={track.title} />
                 <QualityTag />
+                <AddToPlaylistButton trackId={track.id} title={track.title} />
               </div>
               <div className="mt-1 flex justify-center">
                 <PlayerError />

@@ -1,19 +1,34 @@
 import {
+  type AddPlaylistItemsRequest,
+  AddPlaylistItemsResult,
   ArtistDetail,
   AuthResponse,
   CatalogHome,
   CLIENT_TYPE_HEADER,
+  CreatePlaylistRequest as CreatePlaylistRequestInput,
   type ErrorCode,
+  FollowedArtistsPage,
+  IDEMPOTENCY_KEY_HEADER,
+  LibraryChange,
+  LibraryContains,
+  type LibraryContainsRequest,
+  LikedTracksPage,
   type LoginRequest,
+  PlaylistItemsPage,
+  PlaylistList,
+  PlaylistMutation,
+  PlaylistSummary,
   ProblemDetails,
   type RegisterRequest,
   ReleaseDetail,
+  SavedReleasesPage,
   SearchResults,
   type SessionDto,
   SessionList,
   SuggestResults,
   TrackDto,
   TrackStream,
+  type UpdatePlaylistRequest,
   type UpdateProfileRequest,
   UserDto,
 } from '@mp/contracts';
@@ -71,7 +86,16 @@ export interface ApiClientOptions {
   retryDelayMs?: number;
 }
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+/** What the library keeps: liked tracks, saved releases, followed artists. */
+export type LibraryKind = 'tracks' | 'releases' | 'artists';
+
+interface RequestOptions {
+  body?: unknown;
+  /** Idempotency-Key: the same on every retry of this call, so the server applies it once. */
+  key?: string;
+}
 type Listener = (session: Session | null) => void;
 
 const NoContent = z.undefined();
@@ -89,6 +113,17 @@ function queryString(q: string, limit: number | undefined): string {
   if (limit !== undefined) params.set('limit', String(limit));
   return params.toString();
 }
+
+function pageQuery(cursor: string | undefined, limit: number | undefined): string {
+  const params = new URLSearchParams();
+  if (cursor !== undefined) params.set('cursor', cursor);
+  if (limit !== undefined) params.set('limit', String(limit));
+  const text = params.toString();
+  return text === '' ? '' : `?${text}`;
+}
+
+const newKey = (): string => globalThis.crypto.randomUUID();
+const seg = (id: string) => encodeURIComponent(id);
 
 function parseJson(text: string): unknown {
   try {
@@ -247,6 +282,112 @@ export class ApiClient {
     );
   }
 
+  // ------------------------------------------------------------ library (I7a)
+
+  likedTracks(cursor?: string, limit?: number): Promise<LikedTracksPage> {
+    return this.authed('GET', `/library/tracks${pageQuery(cursor, limit)}`, {}, LikedTracksPage);
+  }
+
+  savedReleases(cursor?: string, limit?: number): Promise<SavedReleasesPage> {
+    return this.authed(
+      'GET',
+      `/library/releases${pageQuery(cursor, limit)}`,
+      {},
+      SavedReleasesPage,
+    );
+  }
+
+  followedArtists(cursor?: string, limit?: number): Promise<FollowedArtistsPage> {
+    return this.authed(
+      'GET',
+      `/library/artists${pageQuery(cursor, limit)}`,
+      {},
+      FollowedArtistsPage,
+    );
+  }
+
+  /** Like / save / follow (`saved: true`) or undo it. Repeating either changes nothing. */
+  async setInLibrary(kind: LibraryKind, id: string, saved: boolean): Promise<number> {
+    const change = await this.authed(
+      saved ? 'PUT' : 'DELETE',
+      `/library/${kind}/${seg(id)}`,
+      {},
+      LibraryChange,
+    );
+    return change.seq;
+  }
+
+  /** Which of these are in the library: hearts and "Saved" for one screen. */
+  libraryContains(ids: Partial<LibraryContainsRequest>): Promise<LibraryContains> {
+    return this.authed('POST', '/library/contains', { body: ids }, LibraryContains);
+  }
+
+  async playlists(): Promise<PlaylistSummary[]> {
+    return (await this.authed('GET', '/playlists', {}, PlaylistList)).items;
+  }
+
+  playlist(id: string): Promise<PlaylistSummary> {
+    return this.authed('GET', `/playlists/${seg(id)}`, {}, PlaylistSummary);
+  }
+
+  playlistItems(id: string, cursor?: string, limit?: number): Promise<PlaylistItemsPage> {
+    return this.authed(
+      'GET',
+      `/playlists/${seg(id)}/items${pageQuery(cursor, limit)}`,
+      {},
+      PlaylistItemsPage,
+    );
+  }
+
+  createPlaylist(input: z.input<typeof CreatePlaylistRequestInput>): Promise<PlaylistMutation> {
+    return this.authed('POST', '/playlists', { body: input, key: newKey() }, PlaylistMutation);
+  }
+
+  updatePlaylist(id: string, input: UpdatePlaylistRequest): Promise<PlaylistMutation> {
+    return this.authed('PATCH', `/playlists/${seg(id)}`, { body: input }, PlaylistMutation);
+  }
+
+  async deletePlaylist(id: string): Promise<number> {
+    return (await this.authed('DELETE', `/playlists/${seg(id)}`, {}, LibraryChange)).seq;
+  }
+
+  /**
+   * Adds tracks (at the end unless `after`). A track already there fails with code
+   * DUPLICATE_TRACKS: ask the user, then call again with `allowDuplicates: true`.
+   */
+  addToPlaylist(
+    id: string,
+    input: Pick<AddPlaylistItemsRequest, 'trackIds'> & Partial<AddPlaylistItemsRequest>,
+  ): Promise<AddPlaylistItemsResult> {
+    return this.authed(
+      'POST',
+      `/playlists/${seg(id)}/items`,
+      { body: input, key: newKey() },
+      AddPlaylistItemsResult,
+    );
+  }
+
+  /** Moves an item after another one; `after: null` = to the start. */
+  async movePlaylistItem(id: string, itemId: string, after: string | null): Promise<number> {
+    const change = await this.authed(
+      'PATCH',
+      `/playlists/${seg(id)}/items/${seg(itemId)}`,
+      { body: { after } },
+      LibraryChange,
+    );
+    return change.seq;
+  }
+
+  async removePlaylistItem(id: string, itemId: string): Promise<number> {
+    const change = await this.authed(
+      'DELETE',
+      `/playlists/${seg(id)}/items/${seg(itemId)}`,
+      {},
+      LibraryChange,
+    );
+    return change.seq;
+  }
+
   // ------------------------------------------------------------ internals
 
   /** One refresh at a time per client, and per browser when a lock is provided. */
@@ -294,7 +435,7 @@ export class ApiClient {
   private async authed<T>(
     method: Method,
     path: string,
-    options: { body?: unknown },
+    options: RequestOptions,
     schema: z.ZodType<T>,
   ): Promise<T> {
     let session = this.session;
@@ -318,10 +459,11 @@ export class ApiClient {
   private async send<T>(
     method: Method,
     path: string,
-    options: { body?: unknown; token?: string | undefined },
+    options: RequestOptions & { token?: string | undefined },
     schema: z.ZodType<T>,
   ): Promise<T> {
     const headers: Record<string, string> = { accept: 'application/json' };
+    if (options.key !== undefined) headers[IDEMPOTENCY_KEY_HEADER] = options.key;
     if (options.body !== undefined) headers['content-type'] = 'application/json';
     if (options.token !== undefined) headers.authorization = `Bearer ${options.token}`;
     if (this.options.refreshTokenStore !== undefined) headers[CLIENT_TYPE_HEADER] = 'native';

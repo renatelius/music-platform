@@ -204,7 +204,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         altKey: event.altKey,
         target: targetKind(event.target),
       });
-      if (action === null) return;
+      // The library handles «like» (LibraryProvider): it knows what is liked.
+      if (action === null || action === 'like') return;
       event.preventDefault();
       switch (action) {
         case 'toggle':

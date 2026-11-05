@@ -221,7 +221,7 @@ export function decodeSnapshot(raw: string | null): PlayerSnapshot | null {
 
 // ---------------------------------------------------------------- keyboard
 
-export type HotkeyAction = 'toggle' | 'back' | 'forward' | 'previous' | 'next' | 'mute';
+export type HotkeyAction = 'toggle' | 'back' | 'forward' | 'previous' | 'next' | 'mute' | 'like';
 
 /** `text`: typing or a slider has focus; `button`: Space would click it. */
 export type HotkeyTarget = 'text' | 'button' | 'other';
@@ -247,6 +247,12 @@ export function hotkeyAction(input: HotkeyInput): HotkeyAction | null {
     case 'm':
     case 'M':
       return 'mute';
+    // L likes the playing track; Д is the same key on the Russian layout.
+    case 'l':
+    case 'L':
+    case 'д':
+    case 'Д':
+      return 'like';
     case 'ArrowLeft':
       return input.shiftKey ? 'previous' : 'back';
     case 'ArrowRight':

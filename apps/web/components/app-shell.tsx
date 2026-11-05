@@ -5,6 +5,7 @@ import {
   Button,
   cn,
   IconHome,
+  IconLibrary,
   IconLogOut,
   type IconProps,
   IconSearch,
@@ -17,21 +18,28 @@ import { type ComponentType, type ReactNode, useState } from 'react';
 
 import { useAuth, useSession } from '../lib/auth-context';
 import { useI18n } from '../lib/i18n-context';
+import { useLibrary } from '../lib/library-context';
 import { usePlayerState } from '../lib/player-context';
 import { PlayerBar } from './player/player-bar';
 
 const NAV: readonly {
   href: string;
-  label: 'nav.home' | 'nav.search' | 'nav.account';
+  label: 'nav.home' | 'nav.search' | 'nav.library' | 'nav.account';
   icon: ComponentType<IconProps>;
 }[] = [
   { href: '/', label: 'nav.home', icon: IconHome },
   { href: '/search', label: 'nav.search', icon: IconSearch },
+  { href: '/library', label: 'nav.library', icon: IconLibrary },
   { href: '/account', label: 'nav.account', icon: IconUser },
 ];
 
+/** Most recently changed playlists shown in the sidebar. */
+const SIDEBAR_PLAYLISTS = 15;
+
 const isActive = (pathname: string, href: string) =>
-  href === '/' ? pathname === '/' : pathname.startsWith(href);
+  href === '/'
+    ? pathname === '/'
+    : pathname.startsWith(href) || (href === '/library' && pathname.startsWith('/playlist/'));
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { t } = useI18n();
@@ -40,6 +48,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [signingOut, setSigningOut] = useState(false);
   const hasPlayer = usePlayerState().current !== null;
+  const { playlists } = useLibrary();
 
   const signOut = () => {
     setSigningOut(true);
@@ -77,6 +86,47 @@ export function AppShell({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
+        {/* Playlists in the sidebar (reference 1); the full list is in the library. */}
+        {playlists !== null && playlists.length > 0 ? (
+          <nav aria-label={t('library.tab.playlists')} className="mt-6 flex min-h-0 flex-col">
+            <Link
+              href="/library?tab=playlists"
+              className="px-3 pb-2 text-xs font-semibold tracking-wider text-fg-subtle uppercase hover:text-fg"
+            >
+              {t('library.tab.playlists')}
+            </Link>
+            <ul className="-mx-1 flex min-h-0 flex-col gap-0.5 overflow-y-auto px-1 [scrollbar-width:thin]">
+              {playlists.slice(0, SIDEBAR_PLAYLISTS).map((playlist) => {
+                const href = `/playlist/${playlist.id}`;
+                const active = pathname === href;
+                return (
+                  <li key={playlist.id}>
+                    <Link
+                      href={href}
+                      aria-current={active ? 'page' : undefined}
+                      className={cn(
+                        'block truncate rounded-lg px-3 py-1.5 text-sm transition-colors',
+                        active
+                          ? 'bg-surface text-fg'
+                          : 'text-fg-muted hover:bg-surface hover:text-fg',
+                      )}
+                    >
+                      {playlist.name}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+            {playlists.length > SIDEBAR_PLAYLISTS ? (
+              <Link
+                href="/library?tab=playlists"
+                className="mt-1 px-3 py-1.5 text-sm text-fg-subtle hover:text-fg"
+              >
+                {t('library.more')}
+              </Link>
+            ) : null}
+          </nav>
+        ) : null}
         <div className="mt-auto flex items-center gap-3 rounded-2xl border border-border p-3">
           <Avatar name={user.displayName} />
           <div className="min-w-0 flex-1">
@@ -121,7 +171,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <nav
         aria-label={t('nav.main')}
-        className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-3 border-t border-border bg-bg-elevated/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
+        className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-4 border-t border-border bg-bg-elevated/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
       >
         {NAV.map(({ href, label, icon: Icon }) => {
           const active = isActive(pathname, href);

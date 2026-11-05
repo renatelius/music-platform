@@ -12,6 +12,7 @@ import {
   SectionTitle,
   TrackList,
 } from '../../../../components/catalog-ui';
+import { SaveButton } from '../../../../components/library-ui';
 import { useAuth } from '../../../../lib/auth-context';
 import { countLabel } from '../../../../lib/catalog';
 import { useI18n } from '../../../../lib/i18n-context';
@@ -46,8 +47,9 @@ function Artist({ artist }: { artist: ArtistDetail }) {
               <ExternalLink href={artist.url}>{t('catalog.sourcePage')}</ExternalLink>
             </p>
           ) : null}
-          <div className="mt-5 flex justify-center sm:justify-start">
+          <div className="mt-5 flex flex-wrap items-start justify-center gap-2 sm:justify-start">
             <PlayActions tracks={artist.tracks} />
+            <SaveButton kind="artists" id={artist.id} />
           </div>
         </div>
       </header>

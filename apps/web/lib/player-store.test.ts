@@ -173,6 +173,9 @@ describe('hotkeyAction', () => {
     expect(hotkeyAction(key('ArrowRight'))).toBe('forward');
     expect(hotkeyAction(key('ArrowLeft', { shiftKey: true }))).toBe('previous');
     expect(hotkeyAction(key('ArrowRight', { shiftKey: true }))).toBe('next');
+    expect(hotkeyAction(key('l'))).toBe('like');
+    expect(hotkeyAction(key('Д'))).toBe('like');
+    expect(hotkeyAction(key('l', { target: 'text' }))).toBeNull();
     expect(hotkeyAction(key('x'))).toBeNull();
   });
 

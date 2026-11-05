@@ -7,6 +7,7 @@ import { artistNames } from '../../lib/catalog';
 import { useI18n } from '../../lib/i18n-context';
 import { usePlayer, usePlayerState, usePosition } from '../../lib/player-context';
 import { Cover } from '../catalog-ui';
+import { HeartButton } from '../library-ui';
 import {
   ControlButton,
   NowPlaying,
@@ -58,7 +59,10 @@ export function PlayerBar() {
         aria-label={t('player.label')}
         className="fixed inset-x-0 bottom-0 z-30 hidden h-22 grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,1fr)] items-center gap-6 border-t border-border bg-bg-elevated/95 px-5 backdrop-blur-md md:grid"
       >
-        <NowPlaying />
+        <div className="flex min-w-0 items-center gap-2">
+          <NowPlaying />
+          <HeartButton trackId={current.track.id} title={current.track.title} />
+        </div>
         <div className="flex min-w-0 flex-col items-center gap-1">
           <TransportControls />
           <ProgressBar className="max-w-xl" />
