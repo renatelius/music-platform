@@ -187,4 +187,35 @@ describe('ApiClient', () => {
     await client.logout();
     expect(client.currentSession).toBeNull();
   });
+
+  it('calls the catalog with the access token and an encoded query', async () => {
+    const seen: { url: string | undefined; authorization: string | undefined }[] = [];
+    const id = randomUUID();
+    const url = await serve((req, _body, res) => {
+      if (req.url === '/auth/refresh') {
+        json(res, 200, auth('a1'));
+        return;
+      }
+      seen.push({ url: req.url, authorization: req.headers.authorization });
+      if (req.url?.startsWith('/catalog/search/suggest') === true) {
+        json(res, 200, { query: 'x', items: [] });
+      } else if (req.url?.startsWith('/catalog/search') === true) {
+        json(res, 200, { query: 'x', tracks: [], releases: [], artists: [] });
+      } else {
+        json(res, 404, problem(404, 'NOT_FOUND'));
+      }
+    });
+    const client = new ApiClient({ baseUrl: url });
+    await client.restore();
+    await client.search('kai & engel', 5);
+    await client.suggest('ё?');
+    const missing = await client.release(id).catch((e: unknown) => e);
+    expect(missing).toBeInstanceOf(ApiRequestError);
+    expect((missing as ApiRequestError).status).toBe(404);
+    expect(seen).toEqual([
+      { url: '/catalog/search?q=kai+%26+engel&limit=5', authorization: 'Bearer a1' },
+      { url: '/catalog/search/suggest?q=%D1%91%3F', authorization: 'Bearer a1' },
+      { url: `/catalog/releases/${id}`, authorization: 'Bearer a1' },
+    ]);
+  });
 });

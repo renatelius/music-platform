@@ -1,12 +1,18 @@
 import {
+  ArtistDetail,
   AuthResponse,
+  CatalogHome,
   CLIENT_TYPE_HEADER,
   type ErrorCode,
   type LoginRequest,
   ProblemDetails,
   type RegisterRequest,
+  ReleaseDetail,
+  SearchResults,
   type SessionDto,
   SessionList,
+  SuggestResults,
+  TrackDto,
   type UpdateProfileRequest,
   UserDto,
 } from '@mp/contracts';
@@ -76,6 +82,12 @@ const delay = (ms: number) =>
   new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
   });
+
+function queryString(q: string, limit: number | undefined): string {
+  const params = new URLSearchParams({ q });
+  if (limit !== undefined) params.set('limit', String(limit));
+  return params.toString();
+}
 
 function parseJson(text: string): unknown {
   try {
@@ -190,6 +202,38 @@ export class ApiClient {
   async resetPassword(token: string, password: string): Promise<void> {
     await this.send('POST', '/auth/password/reset', { body: { token, password } }, NoContent);
     await this.endSession();
+  }
+
+  // ------------------------------------------------------------ catalog
+
+  catalogHome(): Promise<CatalogHome> {
+    return this.authed('GET', '/catalog/home', {}, CatalogHome);
+  }
+
+  release(id: string): Promise<ReleaseDetail> {
+    return this.authed('GET', `/catalog/releases/${encodeURIComponent(id)}`, {}, ReleaseDetail);
+  }
+
+  artist(id: string): Promise<ArtistDetail> {
+    return this.authed('GET', `/catalog/artists/${encodeURIComponent(id)}`, {}, ArtistDetail);
+  }
+
+  track(id: string): Promise<TrackDto> {
+    return this.authed('GET', `/catalog/tracks/${encodeURIComponent(id)}`, {}, TrackDto);
+  }
+
+  search(q: string, limit?: number): Promise<SearchResults> {
+    return this.authed('GET', `/catalog/search?${queryString(q, limit)}`, {}, SearchResults);
+  }
+
+  /** Suggestions while typing. */
+  suggest(q: string, limit?: number): Promise<SuggestResults> {
+    return this.authed(
+      'GET',
+      `/catalog/search/suggest?${queryString(q, limit)}`,
+      {},
+      SuggestResults,
+    );
   }
 
   // ------------------------------------------------------------ internals

@@ -157,6 +157,8 @@ export const Suggestion = z.object({
   title: z.string(),
   /** Artists of a release or track; null for an artist. */
   subtitle: z.string().nullable(),
+  /** Release to open: the release itself, or the release of a track; null for an artist. */
+  releaseId: Id.nullable(),
 });
 export type Suggestion = z.infer<typeof Suggestion>;
 

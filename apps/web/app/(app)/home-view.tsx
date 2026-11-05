@@ -1,11 +1,23 @@
 'use client';
 
-import { Alert, Badge, Button, Card, IconCheck, IconMail, IconSparkle } from '@mp/ui';
+import type { CatalogHome } from '@mp/contracts';
+import { Alert, Button, Card, IconDisc, IconMail } from '@mp/ui';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import {
+  ArtistGrid,
+  LoadState,
+  ReleaseGrid,
+  SectionTitle,
+  TrackList,
+} from '../../components/catalog-ui';
+import { SearchBox } from '../../components/search-box';
 import { useAuth, useSession } from '../../lib/auth-context';
+import { countLabel, searchHref } from '../../lib/catalog';
 import { apiErrorMessage } from '../../lib/form-errors';
 import { useI18n } from '../../lib/i18n-context';
+import { useApi } from '../../lib/use-api';
 
 function VerifyEmailBanner({ email }: { email: string }) {
   const { t } = useI18n();
@@ -30,7 +42,7 @@ function VerifyEmailBanner({ email }: { email: string }) {
       tone="warning"
       icon={<IconMail className="size-[18px]" />}
       title={t('home.verify.title')}
-      className="mt-8"
+      className="mt-6"
       action={
         status === 'sent' ? (
           <span className="text-sm font-medium">{t('home.verify.sent')}</span>
@@ -51,11 +63,42 @@ function VerifyEmailBanner({ email }: { email: string }) {
   );
 }
 
-export function HomeView() {
+function CatalogSections({ home }: { home: CatalogHome }) {
   const { t } = useI18n();
+  if (home.stats.tracks === 0) {
+    return (
+      <Card className="mt-10 flex flex-col items-center gap-3 py-12 text-center">
+        <IconDisc className="size-8 text-fg-muted" />
+        <h2 className="text-lg font-semibold tracking-tight text-fg">{t('home.empty.title')}</h2>
+        <p className="max-w-md text-sm text-fg-muted">{t('home.empty.text')}</p>
+      </Card>
+    );
+  }
+  return (
+    <>
+      <section className="mt-12">
+        <SectionTitle title={t('home.recent.title')} />
+        <ReleaseGrid releases={home.recentReleases} />
+      </section>
+      <section className="mt-12">
+        <SectionTitle title={t('home.daily.title')} subtitle={t('home.daily.subtitle')} />
+        <TrackList tracks={home.dailyTracks} showRelease />
+      </section>
+      <section className="mt-12">
+        <SectionTitle title={t('home.artists.title')} />
+        <ArtistGrid artists={home.artists} />
+      </section>
+    </>
+  );
+}
+
+export function HomeView() {
+  const { t, locale } = useI18n();
   const { user } = useSession();
-  const ready = ['home.ready.account', 'home.ready.sessions', 'home.ready.security'] as const;
-  const next = ['home.next.catalog', 'home.next.player', 'home.next.library'] as const;
+  const { client } = useAuth();
+  const router = useRouter();
+  const home = useApi('home', () => client.catalogHome());
+  const stats = home.status === 'ready' ? home.data.stats : null;
 
   return (
     <div className="animate-rise">
@@ -69,42 +112,29 @@ export function HomeView() {
             {t('home.greeting', { name: user.displayName })}
           </h1>
           <p className="mt-3 max-w-xl text-white/70 sm:text-lg">{t('home.subtitle')}</p>
+          {stats !== null && stats.tracks > 0 ? (
+            <p className="mt-4 text-sm font-medium text-white/80">
+              {[
+                countLabel(t, locale, 'tracks', stats.tracks),
+                countLabel(t, locale, 'releases', stats.releases),
+                countLabel(t, locale, 'artists', stats.artists),
+              ].join(' · ')}
+            </p>
+          ) : null}
         </div>
       </section>
 
       {user.emailVerified ? null : <VerifyEmailBanner email={user.email} />}
 
-      <section className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2">
-        <Card>
-          <h2 className="text-lg font-semibold tracking-tight text-fg">{t('home.ready.title')}</h2>
-          <ul className="mt-4 flex flex-col gap-3">
-            {ready.map((key) => (
-              <li key={key} className="flex items-start gap-3 text-sm text-fg">
-                <span className="mt-0.5 inline-flex size-5 items-center justify-center rounded-full bg-success-soft text-success">
-                  <IconCheck className="size-3.5" />
-                </span>
-                {t(key)}
-              </li>
-            ))}
-          </ul>
-        </Card>
-        <Card>
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold tracking-tight text-fg">{t('home.next.title')}</h2>
-            <Badge tone="accent">{t('home.next.badge')}</Badge>
-          </div>
-          <ul className="mt-4 flex flex-col gap-3">
-            {next.map((key) => (
-              <li key={key} className="flex items-start gap-3 text-sm text-fg-muted">
-                <span className="mt-0.5 inline-flex size-5 items-center justify-center rounded-full bg-surface text-accent">
-                  <IconSparkle className="size-3.5" />
-                </span>
-                {t(key)}
-              </li>
-            ))}
-          </ul>
-        </Card>
-      </section>
+      <div className="mt-6">
+        <SearchBox
+          onSubmit={(query) => {
+            router.push(searchHref(query));
+          }}
+        />
+      </div>
+
+      <LoadState state={home}>{(data) => <CatalogSections home={data} />}</LoadState>
     </div>
   );
 }

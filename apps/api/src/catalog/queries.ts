@@ -378,7 +378,13 @@ export async function suggest(db: Database, q: string, limit: number): Promise<S
     ...found.artists.map((hit) => ({
       score: hit.score,
       order: KIND_ORDER.artist,
-      item: { kind: 'artist' as const, id: hit.item.id, title: hit.item.name, subtitle: null },
+      item: {
+        kind: 'artist' as const,
+        id: hit.item.id,
+        title: hit.item.name,
+        subtitle: null,
+        releaseId: null,
+      },
     })),
     ...found.releases.map((hit) => ({
       score: hit.score,
@@ -388,6 +394,7 @@ export async function suggest(db: Database, q: string, limit: number): Promise<S
         id: hit.item.id,
         title: hit.item.title,
         subtitle: names(hit.item.artists),
+        releaseId: hit.item.id,
       },
     })),
     ...found.tracks.map((hit) => ({
@@ -398,6 +405,7 @@ export async function suggest(db: Database, q: string, limit: number): Promise<S
         id: hit.item.id,
         title: hit.item.title,
         subtitle: names(hit.item.artists),
+        releaseId: hit.item.release.id,
       },
     })),
   ];

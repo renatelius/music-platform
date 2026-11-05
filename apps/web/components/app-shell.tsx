@@ -1,6 +1,16 @@
 'use client';
 
-import { Avatar, Button, cn, IconHome, IconLogOut, type IconProps, IconUser, Logo } from '@mp/ui';
+import {
+  Avatar,
+  Button,
+  cn,
+  IconHome,
+  IconLogOut,
+  type IconProps,
+  IconSearch,
+  IconUser,
+  Logo,
+} from '@mp/ui';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { type ComponentType, type ReactNode, useState } from 'react';
@@ -10,10 +20,11 @@ import { useI18n } from '../lib/i18n-context';
 
 const NAV: readonly {
   href: string;
-  label: 'nav.home' | 'nav.account';
+  label: 'nav.home' | 'nav.search' | 'nav.account';
   icon: ComponentType<IconProps>;
 }[] = [
   { href: '/', label: 'nav.home', icon: IconHome },
+  { href: '/search', label: 'nav.search', icon: IconSearch },
   { href: '/account', label: 'nav.account', icon: IconUser },
 ];
 
@@ -97,7 +108,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <nav
         aria-label={t('nav.main')}
-        className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-2 border-t border-border bg-bg-elevated/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
+        className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-3 border-t border-border bg-bg-elevated/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
       >
         {NAV.map(({ href, label, icon: Icon }) => {
           const active = isActive(pathname, href);

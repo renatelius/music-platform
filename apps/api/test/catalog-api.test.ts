@@ -371,12 +371,21 @@ describe('catalog API', () => {
     expect(res.status).toBe(200);
     const suggestions = SuggestResults.parse(res.body);
     expect(suggestions.items.length).toBeLessThanOrEqual(5);
-    expect(suggestions.items[0]).toMatchObject({ kind: 'artist', title: ARTIST_A, subtitle: null });
+    expect(suggestions.items[0]).toMatchObject({
+      kind: 'artist',
+      title: ARTIST_A,
+      subtitle: null,
+      releaseId: null,
+    });
+    // A track suggestion opens its release.
     expect(suggestions.items).toContainEqual({
       kind: 'track',
       id: id('moonlight'),
       title: 'Moonlight',
       subtitle: ARTIST_A,
+      releaseId: id('glacier'),
     });
+    const release = suggestions.items.find((item) => item.kind === 'release');
+    expect(release).toMatchObject({ id: id('glacier'), releaseId: id('glacier') });
   });
 });
