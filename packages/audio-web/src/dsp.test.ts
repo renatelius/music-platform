@@ -7,9 +7,19 @@ import {
   EQ_PRESETS,
   eqPreampDb,
   fadeCurve,
+  normalizeBalance,
   normalizeEq,
   volumeToGain,
 } from './dsp.js';
+
+describe('normalizeBalance', () => {
+  it('clamps, rounds and snaps to centre', () => {
+    expect(normalizeBalance(0.004)).toBe(0);
+    expect(normalizeBalance(-3)).toBe(-1);
+    expect(normalizeBalance(0.333)).toBe(0.33);
+    expect(normalizeBalance(Number.NaN)).toBe(0);
+  });
+});
 
 describe('gain math', () => {
   it('converts decibels and volume', () => {

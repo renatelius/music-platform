@@ -3,7 +3,7 @@
 // Usage: pnpm --filter @mp/api catalog:smoke
 import { loadConfig } from '../config/env.js';
 import { createDb, createPool } from '../db/client.js';
-import { getArtist, getHome, getRelease, search, suggest } from './queries.js';
+import { getArtist, getHome, getRelease, search, suggest, withCountry } from './queries.js';
 
 const config = loadConfig(process.env);
 const pool = createPool(config.db.url, 4);
@@ -51,21 +51,22 @@ try {
       `artist "${firstArtist.name}": ${String(artist?.releases.length ?? 0)} releases`,
     );
 
-    const exact = await search(db, firstArtist.name, 5);
+    // Country unknown, as for a listener without a CDN header.
+    const exact = await withCountry(db, null, (tx) => search(tx, firstArtist.name, 5));
     check(
       exact.artists[0]?.id === firstArtist.id,
       `search "${firstArtist.name}": artist first, ${String(exact.tracks.length)} tracks`,
     );
     const misspelled = typo(firstArtist.name);
     if (misspelled !== null) {
-      const fuzzy = await search(db, misspelled, 5);
+      const fuzzy = await withCountry(db, null, (tx) => search(tx, misspelled, 5));
       check(
         fuzzy.artists.some((found) => found.id === firstArtist.id),
         `search with a typo "${misspelled}" finds "${firstArtist.name}"`,
       );
     }
     const prefix = firstArtist.name.slice(0, 3);
-    const suggestions = await suggest(db, prefix, 8);
+    const suggestions = await withCountry(db, null, (tx) => suggest(tx, prefix, 8));
     check(
       suggestions.items.length > 0,
       `suggest "${prefix}": ${String(suggestions.items.length)} suggestions`,

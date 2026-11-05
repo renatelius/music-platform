@@ -1,6 +1,6 @@
 // Player settings and the saved session in localStorage: pure parsing, safe against old,
 // broken or hand-edited values (anything unexpected falls back to defaults).
-import { EQ_PRESETS, type EqPresetName, normalizeEq } from '@mp/audio-web';
+import { EQ_PRESETS, type EqPresetName, normalizeBalance, normalizeEq } from '@mp/audio-web';
 import {
   DEFAULT_PLAYER_SETTINGS,
   MAX_CROSSFADE_MS,
@@ -19,7 +19,19 @@ export interface WebPlayerSettings {
   readonly eqEnabled: boolean;
   /** Ten gains in dB. */
   readonly eqGains: readonly number[];
+  /** Left/right balance, −1..1. */
+  readonly balance: number;
+  /** The user's own equalizer settings, saved by name (ТЗ v3 §6.2). */
+  readonly eqProfiles: readonly EqProfile[];
 }
+
+export interface EqProfile {
+  readonly name: string;
+  readonly gains: readonly number[];
+}
+
+export const MAX_EQ_PROFILES = 10;
+export const MAX_EQ_PROFILE_NAME = 40;
 
 export const DEFAULT_WEB_SETTINGS: WebPlayerSettings = {
   crossfadeMs: 0,
@@ -28,6 +40,8 @@ export const DEFAULT_WEB_SETTINGS: WebPlayerSettings = {
   quality: 'auto',
   eqEnabled: false,
   eqGains: normalizeEq([]),
+  balance: 0,
+  eqProfiles: [],
 };
 
 export const SETTINGS_KEY = 'remusic.player.settings.v1';
@@ -51,6 +65,16 @@ const SettingsSchema = z.object({
     .array(z.number())
     .catch([])
     .transform((gains) => normalizeEq(gains)),
+  balance: z.number().catch(0).transform(normalizeBalance),
+  eqProfiles: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(MAX_EQ_PROFILE_NAME),
+        gains: z.array(z.number()).transform((gains) => normalizeEq(gains)),
+      }),
+    )
+    .max(MAX_EQ_PROFILES)
+    .catch([]),
 });
 
 function parseJson(raw: string | null): unknown {
@@ -86,6 +110,44 @@ export function toPlayerSettings(settings: WebPlayerSettings): PlayerSettings {
 }
 
 export const EQ_PRESET_NAMES = Object.keys(EQ_PRESETS) as EqPresetName[];
+
+export type SaveProfileResult =
+  | { readonly ok: true; readonly profiles: readonly EqProfile[] }
+  | { readonly ok: false; readonly reason: 'empty' | 'tooLong' | 'full' };
+
+/** Adds a profile, or replaces the one with the same name (case-insensitive). */
+export function saveEqProfile(
+  profiles: readonly EqProfile[],
+  rawName: string,
+  gains: readonly number[],
+): SaveProfileResult {
+  const name = rawName.trim();
+  if (name === '') return { ok: false, reason: 'empty' };
+  if (name.length > MAX_EQ_PROFILE_NAME) return { ok: false, reason: 'tooLong' };
+  const key = name.toLocaleLowerCase();
+  const rest = profiles.filter((profile) => profile.name.toLocaleLowerCase() !== key);
+  if (rest.length === profiles.length && profiles.length >= MAX_EQ_PROFILES) {
+    return { ok: false, reason: 'full' };
+  }
+  return { ok: true, profiles: [...rest, { name, gains: normalizeEq(gains) }] };
+}
+
+export function removeEqProfile(profiles: readonly EqProfile[], name: string): EqProfile[] {
+  return profiles.filter((profile) => profile.name !== name);
+}
+
+/** The saved profile these gains match exactly, or null. */
+export function matchProfile(
+  profiles: readonly EqProfile[],
+  gains: readonly number[],
+): EqProfile | null {
+  const normalized = normalizeEq(gains);
+  return (
+    profiles.find((profile) =>
+      profile.gains.every((gain, i) => Math.abs(gain - (normalized[i] ?? 0)) < 0.01),
+    ) ?? null
+  );
+}
 
 /** The preset these gains match exactly, or null («custom»). */
 export function matchPreset(gains: readonly number[]): EqPresetName | null {

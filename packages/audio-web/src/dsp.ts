@@ -8,6 +8,13 @@ export function volumeToGain(volume: number): number {
   return v * v;
 }
 
+/** Stereo balance: −1 = left only, 0 = centre, 1 = right only; small values snap to centre. */
+export function normalizeBalance(balance: number): number {
+  if (!Number.isFinite(balance)) return 0;
+  const value = Math.min(Math.max(balance, -1), 1);
+  return Math.abs(value) < 0.005 ? 0 : Math.round(value * 100) / 100;
+}
+
 /** ISO octave centres, 31 Hz to 16 kHz. */
 export const EQ_BANDS_HZ: readonly number[] = [
   31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16_000,

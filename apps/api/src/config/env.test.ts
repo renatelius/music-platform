@@ -86,6 +86,16 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...minimal, NODE_ENV: 'production' })).not.toThrow();
   });
 
+  it('reads the country header name, off by default', () => {
+    expect(loadConfig(minimal).geo).toEqual({ countryHeader: null });
+    expect(loadConfig({ ...minimal, GEO_COUNTRY_HEADER: 'CF-IPCountry' }).geo).toEqual({
+      countryHeader: 'cf-ipcountry',
+    });
+    expect(() => loadConfig({ ...minimal, GEO_COUNTRY_HEADER: 'bad header' })).toThrow(
+      /GEO_COUNTRY_HEADER/,
+    );
+  });
+
   it('keeps signed media links short-lived', () => {
     expect(loadConfig({ ...minimal, MEDIA_URL_TTL_SEC: '900' }).stream.urlTtlSec).toBe(900);
     expect(() => loadConfig({ ...minimal, MEDIA_URL_TTL_SEC: '86400' })).toThrow(

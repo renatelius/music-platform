@@ -2,12 +2,21 @@
 
 import { EQ_BANDS_HZ, EQ_MAX_DB, EQ_PRESETS, type EqPresetName } from '@mp/audio-web';
 import type { QualityPreference } from '@mp/player-core';
-import { SectionCard, SegmentedControl } from '@mp/ui';
-import { type ReactNode, useId } from 'react';
+import { cn, IconX, SectionCard, SegmentedControl } from '@mp/ui';
+import { type ReactNode, useId, useState } from 'react';
 
 import { useI18n } from '../../lib/i18n-context';
 import { usePlayer } from '../../lib/player-context';
-import { EQ_PRESET_NAMES, matchPreset } from '../../lib/player-store';
+import {
+  EQ_PRESET_NAMES,
+  matchPreset,
+  matchProfile,
+  MAX_EQ_PROFILE_NAME,
+  MAX_EQ_PROFILES,
+  removeEqProfile,
+  saveEqProfile,
+  type WebPlayerSettings,
+} from '../../lib/player-store';
 
 const bandLabel = (hz: number) => (hz >= 1000 ? `${String(hz / 1000)}k` : String(hz));
 const CUSTOM = 'custom';
@@ -56,6 +65,168 @@ function Field({ label, children, hint }: { label: string; children: ReactNode; 
       <p className="text-sm font-medium text-fg">{label}</p>
       {children}
       {hint !== undefined ? <p className="text-sm text-fg-muted">{hint}</p> : null}
+    </div>
+  );
+}
+
+/** −1..1 slider; snaps to the centre near zero. */
+function BalanceControl({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (balance: number) => void;
+}) {
+  const { t } = useI18n();
+  const id = useId();
+  const percent = Math.round(Math.abs(value) * 100);
+  const text =
+    percent === 0
+      ? t('playback.balance.center')
+      : value < 0
+        ? t('playback.balance.left', { percent })
+        : t('playback.balance.right', { percent });
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between gap-3">
+        <label htmlFor={id} className="text-sm font-medium text-fg">
+          {t('playback.balance')}
+        </label>
+        <span className="text-sm text-fg-muted tabular-nums">{text}</span>
+      </div>
+      <div className="flex items-center gap-3 text-xs text-fg-muted">
+        <span aria-hidden="true">L</span>
+        <input
+          id={id}
+          type="range"
+          min={-100}
+          max={100}
+          step={5}
+          value={Math.round(value * 100)}
+          aria-valuetext={text}
+          onChange={(event) => {
+            onChange(Number(event.target.value) / 100);
+          }}
+          onDoubleClick={() => {
+            onChange(0);
+          }}
+          className="h-1.5 min-w-0 flex-1 cursor-pointer accent-accent"
+        />
+        <span aria-hidden="true">R</span>
+      </div>
+    </div>
+  );
+}
+
+/** Saved equalizer profiles: apply with a click, save the current bands under a name. */
+function EqProfiles({
+  settings,
+  update,
+}: {
+  settings: WebPlayerSettings;
+  update: (patch: Partial<WebPlayerSettings>) => void;
+}) {
+  const { t } = useI18n();
+  const nameId = useId();
+  const [name, setName] = useState('');
+  const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  const active = settings.eqEnabled ? matchProfile(settings.eqProfiles, settings.eqGains) : null;
+
+  const save = () => {
+    const result = saveEqProfile(settings.eqProfiles, name, settings.eqGains);
+    if (!result.ok) {
+      const text = {
+        empty: t('playback.eq.profileError.empty'),
+        tooLong: t('playback.eq.profileError.tooLong', { max: MAX_EQ_PROFILE_NAME }),
+        full: t('playback.eq.profileError.full', { max: MAX_EQ_PROFILES }),
+      }[result.reason];
+      setMessage({ kind: 'error', text });
+      return;
+    }
+    update({ eqProfiles: result.profiles, eqEnabled: true });
+    setMessage({ kind: 'ok', text: t('playback.eq.profileSaved', { name: name.trim() }) });
+    setName('');
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm text-fg-muted">{t('playback.eq.profiles')}</p>
+      {settings.eqProfiles.length === 0 ? (
+        <p className="text-sm text-fg-subtle">{t('playback.eq.noProfiles')}</p>
+      ) : (
+        <ul className="flex flex-wrap gap-2">
+          {settings.eqProfiles.map((profile) => (
+            <li
+              key={profile.name}
+              className={cn(
+                'flex items-center rounded-full border text-sm',
+                active?.name === profile.name
+                  ? 'border-accent text-accent'
+                  : 'border-border text-fg',
+              )}
+            >
+              <button
+                type="button"
+                aria-pressed={active?.name === profile.name}
+                aria-label={t('playback.eq.applyProfile', { name: profile.name })}
+                onClick={() => {
+                  update({ eqGains: profile.gains, eqEnabled: true });
+                }}
+                className="max-w-48 truncate rounded-l-full py-1 pr-1 pl-3 hover:bg-surface"
+              >
+                {profile.name}
+              </button>
+              <button
+                type="button"
+                aria-label={t('playback.eq.deleteProfile', { name: profile.name })}
+                title={t('playback.eq.deleteProfile', { name: profile.name })}
+                onClick={() => {
+                  update({ eqProfiles: removeEqProfile(settings.eqProfiles, profile.name) });
+                }}
+                className="rounded-r-full py-1 pr-2 pl-1 text-fg-muted hover:bg-surface hover:text-fg"
+              >
+                <IconX className="size-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="flex flex-wrap items-center gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          save();
+        }}
+      >
+        <label htmlFor={nameId} className="sr-only">
+          {t('playback.eq.profileName')}
+        </label>
+        <input
+          id={nameId}
+          value={name}
+          maxLength={MAX_EQ_PROFILE_NAME + 10}
+          placeholder={t('playback.eq.profileName')}
+          onChange={(event) => {
+            setName(event.target.value);
+            setMessage(null);
+          }}
+          className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 text-sm text-fg placeholder:text-fg-subtle"
+        />
+        <button
+          type="submit"
+          className="h-9 rounded-lg border border-border px-3 text-sm font-medium text-fg hover:bg-surface"
+        >
+          {t('playback.eq.saveProfile')}
+        </button>
+      </form>
+      {message !== null ? (
+        <p
+          role={message.kind === 'error' ? 'alert' : 'status'}
+          className={cn('text-sm', message.kind === 'error' ? 'text-danger' : 'text-fg-muted')}
+        >
+          {message.text}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -136,6 +307,13 @@ export function PlaybackSettings() {
           />
         </div>
 
+        <BalanceControl
+          value={settings.balance}
+          onChange={(balance) => {
+            updateSettings({ balance });
+          }}
+        />
+
         <div className="flex flex-col gap-3">
           <p className="text-sm font-medium text-fg">{t('playback.eq')}</p>
           <Checkbox
@@ -199,6 +377,7 @@ export function PlaybackSettings() {
               );
             })}
           </div>
+          <EqProfiles settings={settings} update={updateSettings} />
         </div>
 
         <p className="text-sm text-fg-muted">{t('playback.hotkeys')}</p>

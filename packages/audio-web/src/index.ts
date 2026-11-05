@@ -8,6 +8,7 @@ export {
   eqPreampDb,
   type EqPresetName,
   fadeCurve,
+  normalizeBalance,
   normalizeEq,
   volumeToGain,
 } from './dsp.js';

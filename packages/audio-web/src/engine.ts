@@ -8,6 +8,7 @@ import {
   EQ_Q,
   eqPreampDb,
   fadeCurve,
+  normalizeBalance,
   normalizeEq,
   volumeToGain,
 } from './dsp.js';
@@ -49,7 +50,8 @@ export interface WebAudioEngineOptions {
  * Web Audio engine for player-core (ADR-019): two decks, gapless and crossfade transitions on
  * the audio clock, ReplayGain per deck, a 10-band equalizer, perceptual volume.
  *
- * Graph: deck gain (ReplayGain, fades) → 10 filters → EQ preamp → volume → speakers.
+ * Graph: deck gain (ReplayGain, fades) → 10 filters → EQ preamp → balance → volume → speakers.
+ * The volume node also carries the sleep-timer fade (`setFade`).
  */
 export class WebAudioEngine implements AudioEngine {
   private ctx: AudioContext | null = null;
@@ -57,6 +59,10 @@ export class WebAudioEngine implements AudioEngine {
   private filters: BiquadFilterNode[] = [];
   private preamp: GainNode | null = null;
   private volumeNode: GainNode | null = null;
+  private panner: StereoPannerNode | null = null;
+  private balance = 0;
+  /** Sleep-timer fade, 0..1, on top of the user volume. */
+  private fade = 1;
   private current: Deck | null = null;
   /** Decks still sounding after a transition (fading out). */
   private outgoing: Deck[] = [];
@@ -215,6 +221,19 @@ export class WebAudioEngine implements AudioEngine {
     if (!this.paused) this.rampVolume(this.targetVolume());
   }
 
+  /** Left/right balance, −1..1 (ТЗ v3 §6.2). */
+  setBalance(balance: number): void {
+    this.balance = normalizeBalance(balance);
+    const ctx = this.ctx;
+    if (ctx !== null) this.panner?.pan.setTargetAtTime(this.balance, ctx.currentTime, 0.02);
+  }
+
+  /** Sleep-timer fade, 0..1; does not change the volume the user set. */
+  setFade(gain: number): void {
+    this.fade = Math.min(Math.max(Number.isFinite(gain) ? gain : 1, 0), 1);
+    if (!this.paused) this.rampVolume(this.targetVolume());
+  }
+
   setGain(key: string, gainDb: number): void {
     // Tracks are immutable: the new gain is kept for later fades and seeks.
     this.gainOverride.set(key, gainDb);
@@ -286,15 +305,19 @@ export class WebAudioEngine implements AudioEngine {
       return filter;
     });
     const preamp = ctx.createGain();
+    const panner = ctx.createStereoPanner();
+    panner.pan.value = this.balance;
     const volume = ctx.createGain();
     tail.connect(preamp);
-    preamp.connect(volume);
+    preamp.connect(panner);
+    panner.connect(volume);
     volume.connect(ctx.destination);
     volume.gain.value = this.targetVolume();
     this.ctx = ctx;
     this.bus = bus;
     this.preamp = preamp;
     this.volumeNode = volume;
+    this.panner = panner;
     this.applyEq();
     return ctx;
   }
@@ -318,7 +341,7 @@ export class WebAudioEngine implements AudioEngine {
   }
 
   private targetVolume(): number {
-    return this.muted ? 0 : volumeToGain(this.volume);
+    return this.muted ? 0 : volumeToGain(this.volume) * volumeToGain(this.fade);
   }
 
   private rampVolume(target: number): void {

@@ -450,6 +450,19 @@ export class Player {
     this.refreshPrepared();
   }
 
+  /**
+   * How long before the end of the current track the next one takes over: the crossfade
+   * length when the next transition is a crossfade, otherwise 0 (gapless or end of queue).
+   */
+  transitionLeadMs(): number {
+    const current = this.queue.current();
+    const index = this.queue.peekNext(true);
+    const next = index === null ? null : this.queue.at(index);
+    if (current === null || next === null) return 0;
+    const transition = this.transition(current, next);
+    return transition.kind === 'crossfade' ? transition.durationMs : 0;
+  }
+
   private transition(from: QueueEntry, to: QueueEntry): Transition {
     const { crossfadeMs, gaplessAlbums } = this.state.settings;
     if (crossfadeMs <= 0 || from.uid === to.uid) return { kind: 'gapless' };

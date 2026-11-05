@@ -13,6 +13,16 @@ export {
 } from './player.js';
 export { PlayQueue, type QueueSnapshot } from './queue.js';
 export {
+  fadeGain,
+  SLEEP_FADE_MS,
+  SLEEP_MINUTES,
+  type SleepMode,
+  type SleepTarget,
+  SleepTimer,
+  type SleepTimerOptions,
+  type SleepTimerState,
+} from './sleep.js';
+export {
   chooseSource,
   createStreamResolver,
   DEFAULT_CODEC_ORDER,

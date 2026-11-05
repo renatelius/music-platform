@@ -8,9 +8,13 @@ import {
   hotkeyAction,
   type HotkeyInput,
   matchPreset,
+  matchProfile,
+  MAX_EQ_PROFILES,
   MAX_SAVED_ENTRIES,
   mergeSettings,
   parseSettings,
+  removeEqProfile,
+  saveEqProfile,
   toPlayerSettings,
 } from './player-store';
 
@@ -45,6 +49,53 @@ function snapshot(count = 2): PlayerSnapshot {
     settings: { crossfadeMs: 0, gaplessAlbums: true, replayGain: { mode: 'track', preampDb: 0 } },
   };
 }
+
+describe('balance and EQ profiles', () => {
+  it('parses balance and profiles defensively', () => {
+    const parsed = parseSettings(
+      JSON.stringify({
+        balance: 0.3333,
+        eqProfiles: [
+          { name: '  Car ', gains: [3, 2] },
+          { name: '', gains: [] },
+        ],
+      }),
+    );
+    expect(parsed.balance).toBe(0.33);
+    // One broken profile drops the list, not the other settings.
+    expect(parsed.eqProfiles).toEqual([]);
+    const ok = parseSettings(JSON.stringify({ eqProfiles: [{ name: ' Car ', gains: [3] }] }));
+    expect(ok.eqProfiles).toEqual([{ name: 'Car', gains: [3, 0, 0, 0, 0, 0, 0, 0, 0, 0] }]);
+    expect(parseSettings(JSON.stringify({ balance: 'left' })).balance).toBe(0);
+  });
+
+  it('saves, replaces, limits and removes profiles', () => {
+    const first = saveEqProfile([], ' Car ', [1]);
+    if (!first.ok) throw new Error('not saved');
+    expect(first.profiles.map((p) => p.name)).toEqual(['Car']);
+    const replaced = saveEqProfile(first.profiles, 'car', [5]);
+    if (!replaced.ok) throw new Error('not saved');
+    expect(replaced.profiles).toHaveLength(1);
+    expect(replaced.profiles[0]?.gains[0]).toBe(5);
+    expect(saveEqProfile([], '   ', [])).toEqual({ ok: false, reason: 'empty' });
+    expect(saveEqProfile([], 'x'.repeat(41), [])).toEqual({ ok: false, reason: 'tooLong' });
+    const full = Array.from({ length: MAX_EQ_PROFILES }, (_, i) => ({
+      name: `P${String(i)}`,
+      gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    }));
+    expect(saveEqProfile(full, 'New', [])).toEqual({ ok: false, reason: 'full' });
+    expect(saveEqProfile(full, 'p3', [1]).ok).toBe(true);
+    // Removal is by the exact stored name (the last save renamed «Car» to «car»).
+    expect(removeEqProfile(replaced.profiles, 'Car')).toHaveLength(1);
+    expect(removeEqProfile(replaced.profiles, 'car')).toHaveLength(0);
+  });
+
+  it('recognises the active profile', () => {
+    const profiles = [{ name: 'Car', gains: [3, 0, 0, 0, 0, 0, 0, 0, 0, 0] }];
+    expect(matchProfile(profiles, [3])?.name).toBe('Car');
+    expect(matchProfile(profiles, [2])).toBeNull();
+  });
+});
 
 describe('settings', () => {
   it('falls back to defaults for missing, broken or out-of-range values', () => {

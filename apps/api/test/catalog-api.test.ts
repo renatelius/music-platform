@@ -65,6 +65,8 @@ function entry(
 
 describe('catalog API', () => {
   let t: TestApp;
+  /** Same database, but trusts `x-test-country` as the CDN country header (ADR-023). */
+  let geo: TestApp;
   let db: Database;
   let sourceId: string;
   let token: string;
@@ -86,7 +88,7 @@ describe('catalog API', () => {
   async function addTrack(
     name: string,
     data: CatalogEntry,
-    state: 'visible' | 'failed' | 'no-stream' | 'territory' | 'no-assets',
+    state: 'visible' | 'failed' | 'no-stream' | 'territory' | 'no-assets' | 'suspended',
   ) {
     const track = await upsertCatalogTrack(db, sourceId, data);
     ids[name] = track.id;
@@ -128,6 +130,12 @@ describe('catalog API', () => {
         .set({ allowStream: false })
         .where(eq(trackRights.trackId, track.id));
     }
+    if (state === 'suspended') {
+      await db
+        .update(trackRights)
+        .set({ status: 'suspended' })
+        .where(eq(trackRights.trackId, track.id));
+    }
     if (state === 'territory') {
       await db
         .update(trackRights)
@@ -139,6 +147,7 @@ describe('catalog API', () => {
 
   beforeAll(async () => {
     t = await startTestApp();
+    geo = await startTestApp({ GEO_COUNTRY_HEADER: 'x-test-country' });
     db = t.app.get<Database>(DB);
     sourceId = await ensureSource(db, {
       kind: 'synthetic',
@@ -149,6 +158,7 @@ describe('catalog API', () => {
     await addTrack('noStream', entry('No Stream Right', ARTIST_A, 'Glacier Songs'), 'no-stream');
     await addTrack('territory', entry('Territory Locked', ARTIST_A, 'Glacier Songs'), 'territory');
     await addTrack('noAssets', entry('No Renditions', ARTIST_A, 'Glacier Songs'), 'no-assets');
+    await addTrack('suspended', entry('Suspended Licence', ARTIST_A, 'Glacier Songs'), 'suspended');
     await addTrack(
       'etude',
       entry('Beyoncé Étude', ARTIST_B, 'Северное сияние', 'CC0 1.0'),
@@ -187,7 +197,35 @@ describe('catalog API', () => {
 
   afterAll(async () => {
     await deleteSourceCatalog(db, sourceId).catch(() => []);
+    await geo.close();
     await t.close();
+  });
+
+  it('applies territorial rights only for a country reported by the CDN (fail closed)', async () => {
+    const status = async (app: TestApp, path: string, country?: string) => {
+      const headers: Record<string, string> = { authorization: `Bearer ${token}` };
+      if (country !== undefined) headers['x-test-country'] = country;
+      return (await fetch(`${app.url}${path}`, { headers })).status;
+    };
+    const track = `/catalog/tracks/${id('territory')}`;
+    const stream = `${track}/stream`;
+    expect(await status(geo, track, 'US')).toBe(200);
+    expect(await status(geo, track, 'us')).toBe(200);
+    expect(await status(geo, stream, 'US')).toBe(200);
+    expect(await status(geo, track, 'DE')).toBe(404);
+    expect(await status(geo, stream, 'DE')).toBe(404);
+    expect(await status(geo, track)).toBe(404);
+    expect(await status(geo, track, 'XX')).toBe(404);
+    // Without a configured header the client cannot pick a country.
+    expect(await status(t, track, 'US')).toBe(404);
+    // Worldwide tracks play everywhere, also with an unknown country.
+    expect(await status(geo, `/catalog/tracks/${id('moonlight')}`)).toBe(200);
+    expect(await status(geo, `/catalog/tracks/${id('moonlight')}`, 'DE')).toBe(200);
+  });
+
+  it('never plays a track whose licence is suspended', async () => {
+    expect((await get(`/catalog/tracks/${id('suspended')}`)).status).toBe(404);
+    expect((await get(`/catalog/tracks/${id('suspended')}/stream`)).status).toBe(404);
   });
 
   it('requires a signed-in user', async () => {

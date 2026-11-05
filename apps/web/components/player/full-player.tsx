@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react';
 
 import { artistNames, coverColors } from '../../lib/catalog';
 import { useI18n } from '../../lib/i18n-context';
+import { trapFocus } from '../../lib/focus-trap';
 import { usePlayerState, usePosition } from '../../lib/player-context';
 import { Cover } from '../catalog-ui';
 import {
@@ -12,10 +13,13 @@ import {
   PlayerError,
   ProgressBar,
   QualityTag,
+  RepeatButton,
+  ShuffleButton,
   TransportControls,
   VolumeControl,
 } from './controls';
 import { QueueList } from './queue-list';
+import { SleepTimerMenu, SleepTimerStatus } from './sleep-timer';
 
 export type FullPlayerView = 'now' | 'queue';
 
@@ -29,7 +33,8 @@ function CoverRing({ releaseId, title }: { releaseId: string; title: string }) {
   const duration = current?.track.durationMs ?? 0;
   const progress = duration > 0 ? Math.min(position / duration, 1) : 0;
   return (
-    <div className="relative mx-auto aspect-square w-full max-w-72">
+    // Never taller than ~38% of the screen: low windows keep title and controls visible (B3).
+    <div className="relative mx-auto aspect-square w-full max-w-[min(18rem,38dvh)] shrink-0">
       <svg viewBox="0 0 100 100" aria-hidden="true" className="absolute inset-0 -rotate-90">
         <circle
           cx="50"
@@ -74,6 +79,7 @@ export function FullPlayer({
   const { t } = useI18n();
   const { current } = usePlayerState();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -81,6 +87,8 @@ export function FullPlayer({
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const onKey = (event: KeyboardEvent) => {
+      // Tab and Shift+Tab stay inside the dialog (B2).
+      if (dialogRef.current !== null) trapFocus(dialogRef.current, event);
       if (event.key !== 'Escape') return;
       event.preventDefault();
       onClose();
@@ -118,6 +126,7 @@ export function FullPlayer({
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label={t('player.nowPlaying')}
@@ -144,11 +153,13 @@ export function FullPlayer({
             {tab('now', t('player.nowPlaying'))}
             {tab('queue', t('player.queue'))}
           </div>
-          <span className="size-10" aria-hidden="true" />
+          <SleepTimerMenu />
         </header>
 
         {view === 'now' ? (
-          <div className="flex flex-1 flex-col justify-center gap-6 overflow-y-auto py-6">
+          // `safe center`: when space runs out the content scrolls from the top instead of
+          // being cut off under the header (B3).
+          <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-x-hidden overflow-y-auto py-6 [justify-content:safe_center] [scrollbar-width:thin]">
             <CoverRing releaseId={track.release.id} title={track.release.title} />
             <div className="min-w-0 text-center">
               <h2 className="truncate text-2xl font-semibold tracking-tight text-fg">
@@ -163,13 +174,18 @@ export function FullPlayer({
               <div className="mt-1 flex justify-center">
                 <PlayerError />
               </div>
+              <div className="mt-1 flex justify-center">
+                <SleepTimerStatus />
+              </div>
             </div>
             <ProgressBar />
             <div className="flex justify-center">
               <TransportControls large />
             </div>
-            <div className="flex justify-center">
+            <div className="flex items-center justify-between gap-2">
+              <ShuffleButton className="size-11" />
               <VolumeControl />
+              <RepeatButton className="size-11" />
             </div>
           </div>
         ) : (

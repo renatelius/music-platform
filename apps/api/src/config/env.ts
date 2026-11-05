@@ -69,6 +69,16 @@ const EnvSchema = z.object({
    * A link is a bearer token; players renew it shortly before it expires.
    */
   MEDIA_URL_TTL_SEC: z.coerce.number().int().min(60).max(3600).default(600),
+  /**
+   * Header with the listener's country, set by the CDN or reverse proxy (ADR-023), e.g.
+   * `cf-ipcountry`. Set it only when every request passes through that proxy, which overwrites
+   * the header. Unset: country unknown, territorial rights never apply (fail closed).
+   */
+  GEO_COUNTRY_HEADER: z
+    .string()
+    .regex(/^[A-Za-z0-9-]+$/, 'must be a header name')
+    .transform((name) => name.toLowerCase())
+    .optional(),
 });
 
 /** Placeholder secrets from .env.example must never reach production (ADR-022). */
@@ -140,6 +150,7 @@ export interface AppConfig {
     readonly minDurationMs: number;
   };
   readonly stream: { readonly urlTtlSec: number };
+  readonly geo: { readonly countryHeader: string | null };
 }
 
 export class ConfigError extends Error {
@@ -221,6 +232,7 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): A
       minDurationMs: e.INGEST_MIN_DURATION_SEC * 1000,
     },
     stream: { urlTtlSec: e.MEDIA_URL_TTL_SEC },
+    geo: { countryHeader: e.GEO_COUNTRY_HEADER ?? null },
   };
 }
 

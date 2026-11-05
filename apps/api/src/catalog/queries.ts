@@ -21,13 +21,46 @@ import { type SQL, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import type { Database } from '../db/client.js';
+import type { RightRecord } from '../rights/rights-resolver.js';
+
+/** Anything that runs SQL: the database or a transaction (see `withCountry`). */
+export type CatalogDb = Pick<Database, 'execute'>;
+
+/**
+ * A transaction opened by `withCountry`. Search needs one: its fuzzy threshold and the
+ * listener's country are transaction-local settings. The plain database does not type-check.
+ */
+export type CatalogTx = Parameters<Parameters<Database['transaction']>[0]>[0];
+
+/** Transaction-local setting with the listener's country, read by CURRENT_STREAM_RIGHT. */
+const COUNTRY_SETTING = 'mp.country';
+
+/**
+ * Runs catalog queries for a listener in `country` (ISO alpha-2, or null when unknown).
+ * The country lives in a transaction-local setting, so pooled connections never leak it.
+ */
+export function withCountry<T>(
+  db: Database,
+  country: string | null,
+  run: (tx: CatalogTx) => Promise<T>,
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config(${COUNTRY_SETTING}, ${country ?? ''}, true)`);
+    return run(tx);
+  });
+}
 
 // ---------------------------------------------------------------- SQL building blocks
 // Table aliases below are constants of this file, never user input, so sql.raw is safe.
 
-/** A right that allows streaming now, worldwide (no territory detection yet). */
+/**
+ * A right that allows streaming here and now — the SQL twin of `resolveRights` (ADR-023):
+ * active licence, streaming allowed, valid now, worldwide or covering the listener's country.
+ * Unknown country (setting empty or unset) → NULL → territorial rights do not apply.
+ */
 const CURRENT_STREAM_RIGHT = (r: string) =>
-  `${r}.allow_stream AND ${r}.territories IS NULL` +
+  `${r}.status = 'active' AND ${r}.allow_stream` +
+  ` AND (${r}.territories IS NULL OR nullif(current_setting('${COUNTRY_SETTING}', true), '') = ANY(${r}.territories))` +
   ` AND (${r}.valid_from IS NULL OR ${r}.valid_from <= now())` +
   ` AND (${r}.valid_to IS NULL OR ${r}.valid_to > now())`;
 
@@ -92,7 +125,7 @@ const ARTIST_JSON = (a: string) =>
 const raw = (text: string): SQL => sql.raw(text);
 
 async function rows<T extends z.ZodType>(
-  db: Database,
+  db: CatalogDb,
   schema: T,
   query: SQL,
 ): Promise<z.output<T>[]> {
@@ -101,18 +134,40 @@ async function rows<T extends z.ZodType>(
 }
 
 async function one<T extends z.ZodType>(
-  db: Database,
+  db: CatalogDb,
   schema: T,
   query: SQL,
 ): Promise<z.output<T> | null> {
   return (await rows(db, schema, query))[0] ?? null;
 }
 
+const RightRow = z.object({
+  territories: z.array(z.string()).nullable(),
+  allowStream: z.boolean(),
+  allowOffline: z.boolean(),
+  allowPreview: z.boolean(),
+  validFrom: z.coerce.date().nullable(),
+  validTo: z.coerce.date().nullable(),
+  status: z.enum(['active', 'suspended', 'revoked']),
+});
+
+/** Every right of a track, for the Rights Resolver. */
+export async function getTrackRights(db: CatalogDb, trackId: string): Promise<RightRecord[]> {
+  return rows(
+    db,
+    RightRow,
+    sql`SELECT json_build_object('territories', r.territories, 'allowStream', r.allow_stream,
+      'allowOffline', r.allow_offline, 'allowPreview', r.allow_preview,
+      'validFrom', r.valid_from, 'validTo', r.valid_to, 'status', r.status) AS data
+      FROM track_rights r WHERE r.track_id = ${trackId}`,
+  );
+}
+
 // ---------------------------------------------------------------- pages
 
 export const HOME_LIMITS = { recentReleases: 12, dailyTracks: 10, artists: 12 } as const;
 
-export async function getStats(db: Database): Promise<CatalogStats> {
+export async function getStats(db: CatalogDb): Promise<CatalogStats> {
   const stats = await one(
     db,
     CatalogStats,
@@ -125,7 +180,7 @@ export async function getStats(db: Database): Promise<CatalogStats> {
   return stats ?? { tracks: 0, releases: 0, artists: 0 };
 }
 
-export async function getHome(db: Database): Promise<CatalogHome> {
+export async function getHome(db: CatalogDb): Promise<CatalogHome> {
   const [stats, recentReleases, dailyTracks, artists] = await Promise.all([
     getStats(db),
     rows(
@@ -161,7 +216,7 @@ const ReleaseRow = ReleaseSummary.extend({ url: ReleaseDetail.shape.url });
 const ArtistRow = ArtistSummary.extend({ url: ArtistDetail.shape.url });
 
 /** Null when the release does not exist or has no playable track. */
-export async function getRelease(db: Database, id: string): Promise<ReleaseDetail | null> {
+export async function getRelease(db: CatalogDb, id: string): Promise<ReleaseDetail | null> {
   const release = await one(
     db,
     ReleaseRow,
@@ -180,7 +235,7 @@ export async function getRelease(db: Database, id: string): Promise<ReleaseDetai
 }
 
 /** Null when the artist does not exist or has no playable track. */
-export async function getArtist(db: Database, id: string): Promise<ArtistDetail | null> {
+export async function getArtist(db: CatalogDb, id: string): Promise<ArtistDetail | null> {
   const artist = await one(
     db,
     ArtistRow,
@@ -213,7 +268,7 @@ export async function getArtist(db: Database, id: string): Promise<ArtistDetail 
 }
 
 /** Null when the track does not exist or is not playable. */
-export async function getTrack(db: Database, id: string): Promise<TrackDto | null> {
+export async function getTrack(db: CatalogDb, id: string): Promise<TrackDto | null> {
   return one(
     db,
     TrackDto,
@@ -236,7 +291,7 @@ export type TrackStreamData = z.infer<typeof TrackStreamRow>;
 
 /** Renditions and loudness of a playable track, best rendition first; null when not playable. */
 export async function getTrackStreamData(
-  db: Database,
+  db: CatalogDb,
   id: string,
 ): Promise<TrackStreamData | null> {
   return one(
@@ -302,16 +357,6 @@ interface Scored<T> {
 }
 
 type Executor = Pick<Database, 'execute'>;
-
-/** Runs search queries in a transaction with the fuzzy threshold set for it only. */
-function fuzzy<T>(db: Database, run: (tx: Executor) => Promise<T>): Promise<T> {
-  return db.transaction(async (tx) => {
-    await tx.execute(
-      sql`SELECT set_config('pg_trgm.word_similarity_threshold', ${String(FUZZY_THRESHOLD)}, true)`,
-    );
-    return run(tx);
-  });
-}
 
 async function scored<T extends z.ZodType>(
   db: Executor,
@@ -381,19 +426,22 @@ function searchTracks(db: Executor, q: string, limit: number, short: boolean) {
   );
 }
 
-async function searchScored(db: Database, q: string, limit: number) {
+/** Runs in the caller's transaction: the fuzzy threshold is set for it only. */
+async function searchScored(tx: CatalogTx, q: string, limit: number) {
   const short = q.length < SHORT_QUERY;
-  const [artists, releases, tracks] = await Promise.all([
-    fuzzy(db, (tx) => searchArtists(tx, q, limit, short)),
-    fuzzy(db, (tx) => searchReleases(tx, q, limit, short)),
-    fuzzy(db, (tx) => searchTracks(tx, q, limit, short)),
-  ]);
+  await tx.execute(
+    sql`SELECT set_config('pg_trgm.word_similarity_threshold', ${String(FUZZY_THRESHOLD)}, true)`,
+  );
+  // One connection: the three queries run one after another on it.
+  const artists = await searchArtists(tx, q, limit, short);
+  const releases = await searchReleases(tx, q, limit, short);
+  const tracks = await searchTracks(tx, q, limit, short);
   return { artists, releases, tracks };
 }
 
 /** `q` must already be normalized by the `SearchText` contract. */
-export async function search(db: Database, q: string, limit: number): Promise<SearchResults> {
-  const found = await searchScored(db, q, limit);
+export async function search(tx: CatalogTx, q: string, limit: number): Promise<SearchResults> {
+  const found = await searchScored(tx, q, limit);
   return {
     query: q,
     artists: found.artists.map((hit) => hit.item),
@@ -411,8 +459,8 @@ const names = (artists: readonly { name: string }[]): string | null =>
   artists.length === 0 ? null : artists.map((artist) => artist.name).join(', ');
 
 /** Mixed artists, releases and tracks, best match first (for the search box). */
-export async function suggest(db: Database, q: string, limit: number): Promise<SuggestResults> {
-  const found = await searchScored(db, q, limit);
+export async function suggest(tx: CatalogTx, q: string, limit: number): Promise<SuggestResults> {
+  const found = await searchScored(tx, q, limit);
   const all: (Scored<Suggestion> & { order: number })[] = [
     ...found.artists.map((hit) => ({
       score: hit.score,

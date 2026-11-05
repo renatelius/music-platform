@@ -340,6 +340,9 @@ export const trackLoudness = pgTable('track_loudness', {
  * Permission to play a track. No row allowing a mode = the track is not played in that mode
  * (ARCHITECTURE.md §1.4). Attribution is mandatory: CC BY / BY-SA require it.
  */
+/** Licence state (ADR-023): only `active` rights allow playback. */
+export const rightStatus = pgEnum('right_status', ['active', 'suspended', 'revoked']);
+
 export const trackRights = pgTable(
   'track_rights',
   {
@@ -364,6 +367,7 @@ export const trackRights = pgTable(
     allowPreview: boolean('allow_preview').notNull().default(true),
     validFrom: timestamp('valid_from', { withTimezone: true }),
     validTo: timestamp('valid_to', { withTimezone: true }),
+    status: rightStatus('status').notNull().default('active'),
     createdAt: createdAt(),
   },
   (t) => [

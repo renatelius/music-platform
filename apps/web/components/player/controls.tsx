@@ -98,24 +98,70 @@ export function PlayPauseButton({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) 
   );
 }
 
+export function ShuffleButton({
+  className,
+  icon = 'size-5',
+}: {
+  className?: string;
+  icon?: string;
+}) {
+  const { t } = useI18n();
+  const { player } = usePlayer();
+  const state = usePlayerState();
+  return (
+    <ControlButton
+      label={t('player.shuffle')}
+      pressed={state.shuffle}
+      disabled={player === null || state.current === null}
+      className={className}
+      onClick={() => player?.setShuffle(!state.shuffle)}
+    >
+      <IconShuffle className={icon} />
+    </ControlButton>
+  );
+}
+
+export function RepeatButton({
+  className,
+  icon = 'size-5',
+}: {
+  className?: string;
+  icon?: string;
+}) {
+  const { t } = useI18n();
+  const { player } = usePlayer();
+  const state = usePlayerState();
+  return (
+    <ControlButton
+      label={t(`player.repeat.${state.repeat}`)}
+      pressed={state.repeat !== 'off'}
+      disabled={player === null || state.current === null}
+      className={className}
+      onClick={() => player?.cycleRepeat()}
+    >
+      {state.repeat === 'one' ? (
+        <IconRepeatOne className={icon} />
+      ) : (
+        <IconRepeat className={icon} />
+      )}
+    </ControlButton>
+  );
+}
+
+/**
+ * Bar: shuffle, previous, play, next, repeat. Full player (`large`): previous, −10 s, play,
+ * +10 s, next — 272 px, fits a 320 px phone (B1); shuffle and repeat go to the row below.
+ */
 export function TransportControls({ large = false }: { large?: boolean }) {
   const { t } = useI18n();
   const { player } = usePlayer();
   const state = usePlayerState();
   const none = player === null || state.current === null;
   const icon = large ? 'size-6' : 'size-5';
-  const button = large ? 'size-12' : undefined;
+  const button = large ? 'size-11' : undefined;
   return (
-    <div className={cn('flex items-center', large ? 'gap-2 sm:gap-3' : 'gap-1')}>
-      <ControlButton
-        label={t('player.shuffle')}
-        pressed={state.shuffle}
-        disabled={none}
-        className={button}
-        onClick={() => player?.setShuffle(!state.shuffle)}
-      >
-        <IconShuffle className={icon} />
-      </ControlButton>
+    <div className={cn('flex items-center', large ? 'gap-2' : 'gap-1')}>
+      {large ? null : <ShuffleButton />}
       <ControlButton
         label={t('player.previous')}
         disabled={none}
@@ -153,19 +199,7 @@ export function TransportControls({ large = false }: { large?: boolean }) {
       >
         <IconNext className={icon} />
       </ControlButton>
-      <ControlButton
-        label={t(`player.repeat.${state.repeat}`)}
-        pressed={state.repeat !== 'off'}
-        disabled={none}
-        className={button}
-        onClick={() => player?.cycleRepeat()}
-      >
-        {state.repeat === 'one' ? (
-          <IconRepeatOne className={icon} />
-        ) : (
-          <IconRepeat className={icon} />
-        )}
-      </ControlButton>
+      {large ? null : <RepeatButton />}
     </div>
   );
 }

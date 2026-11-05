@@ -8,6 +8,9 @@ import {
   Player,
   type PlayerState,
   type QueueTrack,
+  type SleepMode,
+  SleepTimer,
+  type SleepTimerState,
 } from '@mp/player-core';
 import {
   createContext,
@@ -35,15 +38,19 @@ import {
   toPlayerSettings,
   type WebPlayerSettings,
 } from './player-store';
+import { createTabCoordinator } from './tab-sync';
 
 interface Instance {
   readonly player: Player;
   readonly engine: WebAudioEngine;
+  readonly sleep: SleepTimer;
 }
 
 interface PlayerContextValue {
   /** Null for the first render, until the engine is created on the client. */
   readonly player: Player | null;
+  /** Sleep timer of this tab (null on the first render). */
+  readonly sleep: SleepTimer | null;
   readonly settings: WebPlayerSettings;
   updateSettings: (patch: Partial<WebPlayerSettings>) => void;
   /**
@@ -61,6 +68,8 @@ interface PlayerContextValue {
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
 const SAVE_INTERVAL_MS = 5000;
+/** Sleep-timer resolution; background tabs may tick only once a second (the timer copes). */
+const SLEEP_TICK_MS = 250;
 
 function readStorage(key: string): string | null {
   try {
@@ -105,6 +114,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const engine = new WebAudioEngine();
     engine.setEqualizer(stored.eqGains);
     engine.setEqualizerEnabled(stored.eqEnabled);
+    engine.setBalance(stored.balance);
     const resolver = createStreamResolver({
       fetchStream: (id) => client.trackStream(id),
       mediaUrl: (path) => client.mediaUrl(path),
@@ -114,6 +124,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         error instanceof ApiRequestError && (error.status === 404 || error.status === 422),
     });
     const player = new Player({ engine, resolver, settings: toPlayerSettings(stored) });
+    const sleep = new SleepTimer({
+      player,
+      fade: (gain) => {
+        engine.setFade(gain);
+      },
+    });
+    const sleepTicker = setInterval(() => {
+      sleep.tick();
+    }, SLEEP_TICK_MS);
 
     const key = sessionKey(user.id);
     const saved = decodeSnapshot(readStorage(key));
@@ -130,14 +149,43 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     document.addEventListener('visibilitychange', onVisibility);
     const unbindMediaSession = bindMediaSession(player);
 
+    // One playing tab per account in this browser (B4): starting here pauses the others.
+    let unbindTabs: () => void = () => undefined;
+    if (typeof BroadcastChannel !== 'undefined') {
+      const channel = new BroadcastChannel('remusic.player.v1');
+      const tabs = createTabCoordinator({
+        channel,
+        tabId: crypto.randomUUID(),
+        userId: user.id,
+        onOtherTabPlaying: () => {
+          const { status } = player.getState();
+          if (status === 'playing' || status === 'loading') player.pause();
+        },
+      });
+      let wasPlaying = false;
+      const unsubscribe = player.subscribe((state) => {
+        const playing = state.status === 'playing';
+        if (playing && !wasPlaying) tabs.announcePlaying();
+        wasPlaying = playing;
+      });
+      unbindTabs = () => {
+        unsubscribe();
+        tabs.dispose();
+        channel.close();
+      };
+    }
+
     setSettings(stored);
-    setInstance({ player, engine });
+    setInstance({ player, engine, sleep });
     return () => {
       clearInterval(timer);
+      clearInterval(sleepTicker);
+      sleep.dispose();
       window.removeEventListener('pagehide', save);
       document.removeEventListener('visibilitychange', onVisibility);
       save();
       unbindMediaSession();
+      unbindTabs();
       player.dispose();
       setInstance(null);
     };
@@ -195,6 +243,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (instance === null) return;
       instance.engine.setEqualizer(next.eqGains);
       instance.engine.setEqualizerEnabled(next.eqEnabled);
+      instance.engine.setBalance(next.balance);
       // Also re-prepares the next track, so a new quality applies from the next track on.
       instance.player.setSettings(toPlayerSettings(next));
     },
@@ -231,6 +280,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       player: instance?.player ?? null,
+      sleep: instance?.sleep ?? null,
       settings,
       updateSettings,
       playTracks,
@@ -271,6 +321,49 @@ export function usePlayerState(): PlayerState {
   );
   const getSnapshot = useCallback(() => player?.getState() ?? IDLE_STATE, [player]);
   return useSyncExternalStore(subscribe, getSnapshot, () => IDLE_STATE);
+}
+
+const SLEEP_OFF: SleepTimerState = { mode: null, endsAt: null };
+
+/** Sleep timer state and time left (ms), refreshed every second while it runs. */
+export function useSleepTimer(): {
+  readonly mode: SleepMode | null;
+  readonly remainingMs: number | null;
+  start: (mode: SleepMode) => void;
+  cancel: () => void;
+} {
+  const { sleep } = usePlayer();
+  const subscribe = useCallback(
+    (onChange: () => void) => (sleep === null ? () => undefined : sleep.subscribe(onChange)),
+    [sleep],
+  );
+  // Keep the last snapshot while mode and end time are unchanged: useSyncExternalStore loops
+  // forever on a fresh object per read (the core timer is stable too; this guards older builds).
+  const cached = useRef<SleepTimerState>(SLEEP_OFF);
+  const getSnapshot = useCallback(() => {
+    const next = sleep?.getState() ?? SLEEP_OFF;
+    const prev = cached.current;
+    if (next.mode === prev.mode && next.endsAt === prev.endsAt) return prev;
+    cached.current = next;
+    return next;
+  }, [sleep]);
+  const state = useSyncExternalStore(subscribe, getSnapshot, () => SLEEP_OFF);
+  const [remainingMs, setRemaining] = useState<number | null>(null);
+  useEffect(() => {
+    if (sleep === null) return;
+    const update = () => {
+      setRemaining(sleep.remainingMs());
+    };
+    update();
+    if (state.mode === null) return;
+    const timer = setInterval(update, 1000);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [sleep, state]);
+  const start = useCallback((mode: SleepMode) => sleep?.start(mode), [sleep]);
+  const cancel = useCallback(() => sleep?.cancel(), [sleep]);
+  return { mode: state.mode, remainingMs: state.mode === null ? null : remainingMs, start, cancel };
 }
 
 /** True while sound plays or is about to (the play button shows «pause»). */
