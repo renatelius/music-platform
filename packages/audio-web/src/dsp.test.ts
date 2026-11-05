@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   crossfadeSeconds,
   dbToGain,
+  decodeBudgetBytes,
+  decodedBytes,
   EQ_BANDS_HZ,
   EQ_PRESETS,
   eqPreampDb,
@@ -11,6 +13,40 @@ import {
   normalizeEq,
   volumeToGain,
 } from './dsp.js';
+
+describe('decoding budget', () => {
+  const MB = 1024 * 1024;
+
+  it('matches the measured size of decoded audio (48 kHz stereo float = 21.97 MB/min)', () => {
+    expect(decodedBytes(60_000, 48_000) / MB).toBeCloseTo(21.97, 2);
+    // «I Believe», 4:57.43, measured 108.9 MB in Chrome.
+    expect(decodedBytes(297_430, 48_000) / MB).toBeCloseTo(108.9, 1);
+    expect(decodedBytes(60_000, 44_100)).toBeLessThan(decodedBytes(60_000, 48_000));
+    expect(decodedBytes(60_000, 48_000, 1)).toBe(decodedBytes(60_000, 48_000) / 2);
+    expect(decodedBytes(-5, 48_000)).toBe(0);
+  });
+
+  it('scales with device memory and stays modest when it is unknown', () => {
+    expect(decodeBudgetBytes(32)).toBe(256 * MB);
+    expect(decodeBudgetBytes(8)).toBe(256 * MB);
+    expect(decodeBudgetBytes(4)).toBe(128 * MB);
+    expect(decodeBudgetBytes(2)).toBe(64 * MB);
+    expect(decodeBudgetBytes(0.5)).toBe(64 * MB);
+    expect(decodeBudgetBytes(undefined)).toBe(128 * MB);
+    expect(decodeBudgetBytes(Number.NaN)).toBe(128 * MB);
+  });
+
+  it('decodes typical songs everywhere and long pieces only where memory allows', () => {
+    const fits = (minutes: number, gb: number | undefined) =>
+      decodedBytes(minutes * 60_000, 48_000) <= decodeBudgetBytes(gb);
+    expect(fits(2.5, 1)).toBe(true);
+    expect(fits(3, 1)).toBe(false);
+    expect(fits(5.5, undefined)).toBe(true);
+    expect(fits(6, 4)).toBe(false);
+    expect(fits(11, 8)).toBe(true);
+    expect(fits(12, 16)).toBe(false);
+  });
+});
 
 describe('normalizeBalance', () => {
   it('clamps, rounds and snaps to centre', () => {

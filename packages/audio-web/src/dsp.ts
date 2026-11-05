@@ -8,6 +8,32 @@ export function volumeToGain(volume: number): number {
   return v * v;
 }
 
+// ---------------------------------------------------------------- decoding budget (ADR-024)
+
+const MB = 1024 * 1024;
+
+/**
+ * Bytes a decoded track takes: `decodeAudioData` resamples to the AudioContext rate and stores
+ * 32-bit floats per channel, whatever the codec or bitrate of the file. Measured 05.11:
+ * 48 kHz stereo = 21.97 MB per minute for Opus and AAC alike. Stereo is assumed (mono costs
+ * half, so the estimate errs on the safe side).
+ */
+export function decodedBytes(durationMs: number, contextRate: number, channels = 2): number {
+  return Math.ceil((Math.max(durationMs, 0) / 1000) * contextRate) * channels * 4;
+}
+
+/**
+ * Largest track (in decoded bytes) worth decoding in advance on this device. Two decoded
+ * tracks can be in memory at once (current and next), so the peak is twice this.
+ * `deviceMemoryGb`: `navigator.deviceMemory`, absent in Firefox and Safari.
+ */
+export function decodeBudgetBytes(deviceMemoryGb: number | undefined): number {
+  if (deviceMemoryGb === undefined || !Number.isFinite(deviceMemoryGb)) return 128 * MB;
+  if (deviceMemoryGb >= 8) return 256 * MB;
+  if (deviceMemoryGb >= 4) return 128 * MB;
+  return 64 * MB;
+}
+
 /** Stereo balance: −1 = left only, 0 = centre, 1 = right only; small values snap to centre. */
 export function normalizeBalance(balance: number): number {
   if (!Number.isFinite(balance)) return 0;

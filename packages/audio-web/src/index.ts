@@ -2,6 +2,8 @@ export { BufferDeck, type Deck, ElementDeck } from './decks.js';
 export {
   crossfadeSeconds,
   dbToGain,
+  decodeBudgetBytes,
+  decodedBytes,
   EQ_BANDS_HZ,
   EQ_MAX_DB,
   EQ_PRESETS,
@@ -12,7 +14,7 @@ export {
   normalizeEq,
   volumeToGain,
 } from './dsp.js';
-export { MAX_DECODED_DURATION_MS, WebAudioEngine, type WebAudioEngineOptions } from './engine.js';
+export { WebAudioEngine, type WebAudioEngineOptions } from './engine.js';
 export { bindMediaSession, type MediaSessionOptions } from './media-session.js';
 
 /** Whether this browser can play a source `mimeType` (for player-core `chooseSource`). */

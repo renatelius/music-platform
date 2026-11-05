@@ -4,6 +4,8 @@ import { BufferDeck, type Deck, type DeckHandlers, ElementDeck } from './decks.j
 import {
   crossfadeSeconds,
   dbToGain,
+  decodeBudgetBytes,
+  decodedBytes,
   EQ_BANDS_HZ,
   EQ_Q,
   eqPreampDb,
@@ -22,8 +24,6 @@ const TICK_MS = 50;
 const SCHEDULE_AHEAD_SEC = 2.5;
 /** The next track is decoded this long before the current one ends (keeps memory low). */
 const DECODE_AHEAD_SEC = 45;
-/** Longer tracks stream through <audio> instead of being decoded (a decoded hour is ~1 GB). */
-export const MAX_DECODED_DURATION_MS = 15 * 60_000;
 /** Pause, resume and seek ramp the volume this fast to avoid clicks. */
 const DECLICK_SEC = 0.03;
 
@@ -44,6 +44,11 @@ export interface WebAudioEngineOptions {
   /** For tests and the desktop app; defaults to the global fetch. */
   readonly fetch?: typeof fetch;
   readonly createContext?: () => AudioContext;
+  /**
+   * Tracks whose decoded size exceeds this stream through <audio> instead (ADR-024).
+   * Default: from `navigator.deviceMemory`, see `decodeBudgetBytes`.
+   */
+  readonly decodeBudgetBytes?: number;
 }
 
 /**
@@ -77,6 +82,7 @@ export class WebAudioEngine implements AudioEngine {
   private eqEnabled = true;
   private readonly fetchImpl: typeof fetch;
   private readonly createContext: () => AudioContext;
+  private readonly decodeBudget: number;
   private readonly handlers: DeckHandlers;
   /** ReplayGain changed after load (setGain), by track key. */
   private readonly gainOverride = new Map<string, number>();
@@ -85,6 +91,13 @@ export class WebAudioEngine implements AudioEngine {
     this.fetchImpl = options.fetch ?? ((input, init) => fetch(input, init));
     this.createContext =
       options.createContext ?? (() => new AudioContext({ latencyHint: 'playback' }));
+    this.decodeBudget =
+      options.decodeBudgetBytes ??
+      decodeBudgetBytes(
+        typeof navigator === 'undefined'
+          ? undefined
+          : (navigator as Navigator & { deviceMemory?: number }).deviceMemory,
+      );
     this.handlers = {
       onEnded: (deck) => {
         this.onDeckEnded(deck);
@@ -139,7 +152,8 @@ export class WebAudioEngine implements AudioEngine {
       startAt: null,
     };
     this.next = next;
-    if (track.durationMs > MAX_DECODED_DURATION_MS) {
+    // Decoded audio is ~22 MB per minute at 48 kHz: past the budget, stream instead (ADR-024).
+    if (decodedBytes(track.durationMs, this.context().sampleRate) > this.decodeBudget) {
       next.state = 'failed'; // streams through <audio> when it is time
       return;
     }
