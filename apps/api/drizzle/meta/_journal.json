@@ -22,6 +22,13 @@
       "when": 1793833175704,
       "tag": "0002_soft_tomas",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793839936962,
+      "tag": "0003_catalog_search",
+      "breakpoints": true
     }
   ]
 }

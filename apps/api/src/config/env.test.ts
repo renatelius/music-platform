@@ -19,6 +19,11 @@ describe('loadConfig', () => {
     expect(config.env).toBe('development');
     expect(config.api.port).toBe(4000);
     expect(config.api.trustProxy).toBe('loopback');
+    expect(config.api.docs).toBe(true);
+    expect(loadConfig({ ...minimal, NODE_ENV: 'production' }).api.docs).toBe(false);
+    expect(loadConfig({ ...minimal, NODE_ENV: 'production', API_DOCS: 'true' }).api.docs).toBe(
+      true,
+    );
     expect(config.auth.cookiePath).toBe('/auth');
     expect(config.s3.forcePathStyle).toBe(true);
     expect(config.rateLimit).toEqual({ max: 300, windowMs: 60_000, keyPrefix: 'rl' });

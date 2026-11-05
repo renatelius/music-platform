@@ -20,6 +20,8 @@ const EnvSchema = z.object({
   CORS_ORIGINS: csv.default(['http://localhost:3000', 'http://127.0.0.1:3000']),
   /** `loopback` trusts X-Forwarded-For only from a proxy on the same host (e.g. the web app). */
   TRUST_PROXY: z.enum(['false', 'true', 'loopback']).default('loopback'),
+  /** OpenAPI at /openapi.json and /docs; default: on outside production. */
+  API_DOCS: z.stringbool().optional(),
   LOG_LEVEL: LogLevel.default('log'),
   LOG_FORMAT: z.enum(['json', 'pretty']).default('pretty'),
   DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, 'must be a postgres:// URL'),
@@ -82,6 +84,7 @@ export interface AppConfig {
     readonly publicUrl: string;
     readonly corsOrigins: readonly string[];
     readonly trustProxy: boolean | 'loopback';
+    readonly docs: boolean;
   };
   readonly log: { readonly level: LogLevel; readonly format: 'json' | 'pretty' };
   readonly db: { readonly url: string; readonly poolMax: number };
@@ -151,6 +154,7 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): A
       publicUrl: e.API_PUBLIC_URL,
       corsOrigins: e.CORS_ORIGINS,
       trustProxy: e.TRUST_PROXY === 'loopback' ? 'loopback' : e.TRUST_PROXY === 'true',
+      docs: e.API_DOCS ?? e.NODE_ENV !== 'production',
     },
     log: { level: e.LOG_LEVEL, format: e.LOG_FORMAT },
     db: { url: e.DATABASE_URL, poolMax: e.DATABASE_POOL_MAX },

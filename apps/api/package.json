@@ -44,6 +44,7 @@
     "start": "node --env-file-if-exists=../../.env dist/main.js",
     "worker": "node --env-file-if-exists=../../.env dist/worker/main.js",
     "worker:smoke": "node --env-file-if-exists=../../.env dist/worker/smoke-cli.js",
+    "catalog:smoke": "node --env-file-if-exists=../../.env dist/catalog/smoke-cli.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run",

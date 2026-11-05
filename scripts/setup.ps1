@@ -150,6 +150,7 @@ Run-Step 'Audio pipeline smoke test (synthetic file -> renditions in S3)' { & pn
 # First run downloads several GB from Hugging Face (audio is read per row group, ~0.3-0.5 GB each)
 # and takes a while; once the catalog has 300 ready tracks it only verifies them (seconds).
 Run-Step 'Test catalog: FMA import, 300 tracks under open licenses (check only when complete)' -Live { & pnpm catalog:import }
+Run-Step 'Catalog read side: home, release, artist, search with a typo (dev database)' { & pnpm --filter @mp/api catalog:smoke }
 
 # Smoke tests start their own servers. If dev.bat is running, the ports are taken and the
 # requests would reach the dev servers instead, so a passing result would prove nothing.

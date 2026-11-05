@@ -41,6 +41,10 @@
 | `POST /auth/email/verify`, `POST /auth/email/resend` | подтверждение email |
 | `POST /auth/password/forgot`, `POST /auth/password/reset` | сброс пароля |
 | `GET /me`, `PATCH /me` | профиль, смена имени и языка (нужен `Authorization: Bearer`) |
+| `GET /catalog/home` | главная: размер каталога, недавно добавленные, треки дня, исполнители |
+| `GET /catalog/releases/:id`, `/catalog/artists/:id`, `/catalog/tracks/:id` | альбом, исполнитель, трек (лицензия и атрибуция на каждом треке) |
+| `GET /catalog/search?q=`, `/catalog/search/suggest?q=` | поиск и подсказки (опечатки, акценты, ё/е) |
+| `GET /openapi.json`, `GET /docs` | описание API (OpenAPI 3.1), вне production |
 
 Веб-приложение проксирует API под `/api/*` (например, `/api/auth/login`). Нативные клиенты передают `X-Client-Type: native` и получают refresh-токен в теле ответа; браузер — в HttpOnly-cookie. Письма видны в Mailpit: http://127.0.0.1:8025
 
