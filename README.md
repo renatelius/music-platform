@@ -44,6 +44,8 @@
 | `GET /catalog/home` | главная: размер каталога, недавно добавленные, треки дня, исполнители |
 | `GET /catalog/releases/:id`, `/catalog/artists/:id`, `/catalog/tracks/:id` | альбом, исполнитель, трек (лицензия и атрибуция на каждом треке) |
 | `GET /catalog/search?q=`, `/catalog/search/suggest?q=` | поиск и подсказки (опечатки, акценты, ё/е) |
+| `GET /catalog/tracks/:id/stream` | подписанные ссылки на рендиции трека и громкость для ReplayGain |
+| `GET /media/:token` | аудиофайл по подписанной ссылке (Range, без Authorization) |
 | `GET /openapi.json`, `GET /docs` | описание API (OpenAPI 3.1), вне production |
 
 Веб-приложение проксирует API под `/api/*` (например, `/api/auth/login`). Нативные клиенты передают `X-Client-Type: native` и получают refresh-токен в теле ответа; браузер — в HttpOnly-cookie. Письма видны в Mailpit: http://127.0.0.1:8025
@@ -80,6 +82,8 @@ packages/
   ui/            React-компоненты на Tailwind CSS v4
   i18n/          переводы (en, ru) и определение языка
   api-client/    типизированный клиент API для всех платформ
+  player-core/   ядро плеера для всех платформ: очередь, shuffle/repeat, выбор рендиции, ReplayGain
+  audio-web/     аудиодвижок браузера и Windows: gapless, crossfade, эквалайзер, Media Session
 infrastructure/docker/   локальная инфраструктура (docker compose)
 tools/
   catalog-import/ импорт тестового каталога FMA (Hugging Face → S3 → конвейер аудио)

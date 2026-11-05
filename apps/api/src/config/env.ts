@@ -64,6 +64,8 @@ const EnvSchema = z.object({
     .default('mp'),
   /** Shorter files are rejected (jingles, broken uploads). */
   INGEST_MIN_DURATION_SEC: z.coerce.number().int().min(1).max(600).default(30),
+  /** Lifetime of signed media links (ADR-019). Players fetch a fresh link when one expires. */
+  MEDIA_URL_TTL_SEC: z.coerce.number().int().min(60).max(86_400).default(3600),
 });
 
 /** Placeholder secrets from .env.example must never reach production. */
@@ -124,6 +126,7 @@ export interface AppConfig {
     readonly queuePrefix: string;
     readonly minDurationMs: number;
   };
+  readonly stream: { readonly urlTtlSec: number };
 }
 
 export class ConfigError extends Error {
@@ -198,6 +201,7 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): A
       queuePrefix: e.QUEUE_PREFIX,
       minDurationMs: e.INGEST_MIN_DURATION_SEC * 1000,
     },
+    stream: { urlTtlSec: e.MEDIA_URL_TTL_SEC },
   };
 }
 

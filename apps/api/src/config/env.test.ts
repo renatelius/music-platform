@@ -29,6 +29,7 @@ describe('loadConfig', () => {
     expect(config.rateLimit).toEqual({ max: 300, windowMs: 60_000, keyPrefix: 'rl' });
     expect(config.media).toEqual({ ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe' });
     expect(config.worker).toEqual({ concurrency: 2, queuePrefix: 'mp', minDurationMs: 30_000 });
+    expect(config.stream).toEqual({ urlTtlSec: 3600 });
     expect(config.version).toMatch(/^\d+\.\d+\.\d+/);
   });
 

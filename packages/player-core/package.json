@@ -1,0 +1,32 @@
+{
+  "name": "@mp/player-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Platform-independent player core: queue, shuffle/repeat, source choice, ReplayGain, playback state machine",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mp/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@mp/config": "workspace:*",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

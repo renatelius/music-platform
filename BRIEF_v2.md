@@ -490,7 +490,7 @@ PHASE 7 — Production:
 | Artist Studio | Отдельная экосистема для музыкантов и независимых лейблов | [Arena / For Musicians](https://images.openai.com/static-rsc-4/K9X9-EX7bnhnqZymtiPTGdXJwQxuTB1gQ4ECTjWziG5IqPTy4gYGq6fFbh_P_5Au5QesBe0JRoQ8XKZtzeMR165kogfLaVInEptnizwlb775t41x3giZQTZMTx5Tf5GxmOvt-1cAPPOlG3c5BJsuLkLOcR9ntkBKaTiHTp_zoAI?purpose=inline) |
 | AI Discovery | Интеллектуальный поиск и персональный музыкальный диджей | [Aura Music Archive](https://images.openai.com/static-rsc-4/6SbNlspz7T-rgPb1UYtKSDfU5LlTXPgqhq19mnLPDchxQUoTVrAf8dyp_ItmcBXxswpion4zc9pOttei2kvAyPwbquXQ8Fhjv0fk5zNkzh2dL9g7sHNqMD28X9opedSQb6r0qw7q-G0bo8KhiacblNF5Ly-b7O2osLplcQq3mUw?purpose=inline) |
 
-> Ссылки на изображения могут перестать открываться со временем — при необходимости сохранить копии в `docs/references/`.
+> Ссылки на изображения могут перестать открываться со временем — копии сохранены в `docs/references/` (2026-11-05).
 
 ## Рекомендации заказчика по старту
 

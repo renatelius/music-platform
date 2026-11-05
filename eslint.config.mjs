@@ -40,7 +40,12 @@ export default defineConfig(
     },
   },
   {
-    files: ['apps/web/**/*.{ts,tsx}', 'packages/ui/**/*.{ts,tsx}', 'packages/api-client/**/*.ts'],
+    files: [
+      'apps/web/**/*.{ts,tsx}',
+      'packages/ui/**/*.{ts,tsx}',
+      'packages/api-client/**/*.ts',
+      'packages/audio-web/**/*.ts',
+    ],
     languageOptions: { globals: { ...globals.browser } },
   },
   {

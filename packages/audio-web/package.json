@@ -1,0 +1,32 @@
+{
+  "name": "@mp/audio-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser / WebView2 audio engine for player-core: Web Audio, gapless, crossfade, ReplayGain, 10-band EQ, Media Session",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mp/player-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@mp/config": "workspace:*",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

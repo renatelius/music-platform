@@ -11,6 +11,8 @@ import {
   ReleaseDetail,
   ReleaseSummary,
   type SearchResults,
+  StreamSource,
+  TrackLoudnessInfo,
   type Suggestion,
   type SuggestResults,
   TrackDto,
@@ -216,6 +218,43 @@ export async function getTrack(db: Database, id: string): Promise<TrackDto | nul
     db,
     TrackDto,
     sql`SELECT ${raw(TRACK_JSON('t'))} AS data FROM tracks t WHERE t.id = ${id} AND ${raw(VISIBLE('t'))}`,
+  );
+}
+
+/** A rendition as stored: the controller turns it into a signed source. */
+export const StoredRendition = StreamSource.omit({ mimeType: true, url: true }).extend({
+  s3Key: z.string().min(1),
+});
+export type StoredRendition = z.infer<typeof StoredRendition>;
+
+const TrackStreamRow = z.object({
+  durationMs: z.number().int().positive(),
+  loudness: TrackLoudnessInfo.nullable(),
+  renditions: z.array(StoredRendition),
+});
+export type TrackStreamData = z.infer<typeof TrackStreamRow>;
+
+/** Renditions and loudness of a playable track, best rendition first; null when not playable. */
+export async function getTrackStreamData(
+  db: Database,
+  id: string,
+): Promise<TrackStreamData | null> {
+  return one(
+    db,
+    TrackStreamRow,
+    sql`SELECT json_build_object(
+      'durationMs', t.duration_ms,
+      'loudness', (SELECT json_build_object('integratedLufs', l.integrated_lufs,
+          'truePeakDbtp', l.true_peak_dbtp, 'replayGainDb', l.replay_gain_db)
+        FROM track_loudness l WHERE l.track_id = t.id),
+      'renditions', (SELECT coalesce(json_agg(json_build_object('codec', a.codec,
+          'container', a.container, 'bitrateKbps', a.bitrate_kbps, 'sampleRateHz', a.sample_rate_hz,
+          'bitDepth', a.bit_depth, 'channels', a.channels, 'quality', a.quality,
+          'sizeBytes', a.size_bytes, 's3Key', a.s3_key)
+        ORDER BY CASE a.quality WHEN 'hires' THEN 3 WHEN 'lossless' THEN 2 ELSE 1 END DESC,
+          a.bit_depth DESC NULLS LAST, a.bitrate_kbps DESC NULLS LAST, a.codec), '[]'::json)
+        FROM track_assets a WHERE a.track_id = t.id)
+    ) AS data FROM tracks t WHERE t.id = ${id} AND ${raw(VISIBLE('t'))}`,
   );
 }
 

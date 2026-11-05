@@ -20,6 +20,7 @@ import {
   SuggestQuery,
   SuggestResults,
   TrackDto,
+  TrackStream,
   UpdateProfileRequest,
   UserDto,
 } from '@mp/contracts';
@@ -43,6 +44,7 @@ interface Operation {
 
 const LiveResponse = z.object({ status: z.literal('ok') });
 const idParam = { id: Id };
+const tokenParam = { token: z.string().regex(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/) };
 
 export const OPERATIONS: readonly Operation[] = [
   {
@@ -217,6 +219,29 @@ export const OPERATIONS: readonly Operation[] = [
     auth: true,
     params: idParam,
     responses: { 200: { description: 'Track', schema: TrackDto } },
+  },
+  {
+    method: 'get',
+    path: '/catalog/tracks/{id}/stream',
+    tag: 'catalog',
+    summary: 'Signed links to the renditions of a track, with loudness for ReplayGain',
+    auth: true,
+    params: idParam,
+    responses: { 200: { description: 'Sources, best first', schema: TrackStream } },
+  },
+  {
+    method: 'get',
+    path: '/media/{token}',
+    tag: 'catalog',
+    summary: 'Audio file by signed link from /stream; supports Range (no Authorization header)',
+    auth: false,
+    params: tokenParam,
+    responses: {
+      200: { description: 'Whole file' },
+      206: { description: 'Requested byte range' },
+      403: { description: 'Link invalid or expired', schema: ProblemDetails },
+      416: { description: 'Range outside the file' },
+    },
   },
   {
     method: 'get',

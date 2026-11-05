@@ -218,4 +218,11 @@ describe('ApiClient', () => {
       { url: `/catalog/releases/${id}`, authorization: 'Bearer a1' },
     ]);
   });
+
+  it('resolves media paths against the base URL', () => {
+    expect(new ApiClient({ baseUrl: '/api/' }).mediaUrl('/media/a.b')).toBe('/api/media/a.b');
+    expect(new ApiClient({ baseUrl: 'https://api.example' }).mediaUrl('/media/a.b')).toBe(
+      'https://api.example/media/a.b',
+    );
+  });
 });

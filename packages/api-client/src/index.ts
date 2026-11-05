@@ -13,6 +13,7 @@ import {
   SessionList,
   SuggestResults,
   TrackDto,
+  TrackStream,
   type UpdateProfileRequest,
   UserDto,
 } from '@mp/contracts';
@@ -224,6 +225,16 @@ export class ApiClient {
 
   search(q: string, limit?: number): Promise<SearchResults> {
     return this.authed('GET', `/catalog/search?${queryString(q, limit)}`, {}, SearchResults);
+  }
+
+  /** Signed links to the renditions of a track (valid until `expiresAt`) and its loudness. */
+  trackStream(id: string): Promise<TrackStream> {
+    return this.authed('GET', `/catalog/tracks/${encodeURIComponent(id)}/stream`, {}, TrackStream);
+  }
+
+  /** Absolute URL of a `/media/...` path from `trackStream`, for <audio> and fetch(). */
+  mediaUrl(path: string): string {
+    return `${this.baseUrl}${path}`;
   }
 
   /** Suggestions while typing. */
