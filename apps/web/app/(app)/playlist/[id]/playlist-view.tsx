@@ -12,6 +12,7 @@ import { countLabel, formatTotalDuration } from '../../../../lib/catalog';
 import { apiErrorMessage } from '../../../../lib/form-errors';
 import { useI18n } from '../../../../lib/i18n-context';
 import { useLibrary } from '../../../../lib/library-context';
+import { useSyncEvents } from '../../../../lib/sync-context';
 import { useApi, useDocumentTitle } from '../../../../lib/use-api';
 import { moveLocallyTo, moveTargetTo } from '../../../../lib/playlist-order';
 import { usePaged } from '../../../../lib/use-paged';
@@ -112,6 +113,33 @@ function Playlist({ initial }: { initial: PlaylistSummary }) {
     reloadPlaylists();
     client.playlist(initial.id).then(setPlaylist, () => undefined);
   };
+
+  // Changed on another device or tab (I7b): show the new order, name, or leave if deleted.
+  useSyncEvents((event) => {
+    if (event.kind === 'reset') {
+      paged.reload();
+      client.playlist(initial.id).then(setPlaylist, () => undefined);
+      return;
+    }
+    if (event.kind !== 'changes') return;
+    let touched = false;
+    for (const change of event.changes) {
+      if (change.entity === 'playlist' && change.entityId === initial.id) {
+        if (change.op === 'delete') {
+          router.push('/library?tab=playlists');
+          return;
+        }
+        touched = true;
+      }
+      if (change.entity === 'playlist_item' && change.payload?.playlistId === initial.id) {
+        touched = true;
+      }
+    }
+    if (touched) {
+      paged.reload();
+      client.playlist(initial.id).then(setPlaylist, () => undefined);
+    }
+  });
 
   const failed = (caught: unknown) => {
     setError(caught);

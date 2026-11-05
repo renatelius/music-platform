@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { getServerTranslator } from '../../../lib/server-i18n';
 import { LibraryView, type LibraryTab } from './library-view';
 
-const TABS: readonly LibraryTab[] = ['tracks', 'playlists', 'releases', 'artists'];
+const TABS: readonly LibraryTab[] = ['tracks', 'playlists', 'releases', 'artists', 'recent'];
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getServerTranslator();

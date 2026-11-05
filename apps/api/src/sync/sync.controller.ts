@@ -20,6 +20,7 @@ import {
   type RecordPlaysResult,
   SyncChangesQuery,
   type SyncChangesPage,
+  type SyncState,
   UpdateUserSettingsRequest,
   type UserSettings,
   type UserSettingsMutation,
@@ -42,6 +43,11 @@ import { SyncService } from './sync.service.js';
 @UseGuards(AuthGuard)
 export class SyncController {
   constructor(@Inject(SyncService) private readonly sync: SyncService) {}
+
+  @Get('state')
+  async state(@CurrentAuth() auth: AuthContext): Promise<SyncState> {
+    return { seq: await this.sync.currentSeq(auth.userId) };
+  }
 
   @Get('changes')
   changes(

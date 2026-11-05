@@ -2,6 +2,9 @@ import type { PlayerSnapshot } from '@mp/player-core';
 import { describe, expect, it } from 'vitest';
 
 import {
+  toPlaybackSettings,
+  fromPlaybackSettings,
+  sameSettings,
   decodeSnapshot,
   DEFAULT_WEB_SETTINGS,
   encodeSnapshot,
@@ -186,5 +189,21 @@ describe('hotkeyAction', () => {
     expect(hotkeyAction(key('k', { target: 'button' }))).toBe('toggle');
     expect(hotkeyAction(key('ArrowLeft', { altKey: true }))).toBeNull();
     expect(hotkeyAction(key('k', { ctrlKey: true }))).toBeNull();
+  });
+});
+
+describe('account playback settings', () => {
+  it('round-trips the device settings through the account', () => {
+    const local = mergeSettings(DEFAULT_WEB_SETTINGS, {
+      crossfadeMs: 4000,
+      eqEnabled: true,
+      balance: -0.5,
+      eqProfiles: [{ name: 'Night', gains: [1, 1, 1, 0, 0, 0, 0, 0, 0, 0] }],
+    });
+    const playback = toPlaybackSettings(local);
+    expect(playback).not.toBeNull();
+    if (playback === null) return;
+    expect(sameSettings(fromPlaybackSettings(DEFAULT_WEB_SETTINGS, playback), local)).toBe(true);
+    expect(sameSettings(local, DEFAULT_WEB_SETTINGS)).toBe(false);
   });
 });

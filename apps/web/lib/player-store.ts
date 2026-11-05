@@ -8,6 +8,7 @@ import {
   type PlayerSnapshot,
   type QualityPreference,
 } from '@mp/player-core';
+import { PlaybackSettings } from '@mp/contracts';
 import { z } from 'zod';
 
 /** Device-level playback preferences (account page, «Playback»). */
@@ -260,4 +261,36 @@ export function hotkeyAction(input: HotkeyInput): HotkeyAction | null {
     default:
       return null;
   }
+}
+
+// ---------------------------------------------------------------- account settings (I7b)
+
+/** The playback part of the account settings; null if something is out of the shared range. */
+export function toPlaybackSettings(settings: WebPlayerSettings): PlaybackSettings | null {
+  const parsed = PlaybackSettings.safeParse({
+    crossfadeMs: settings.crossfadeMs,
+    gaplessAlbums: settings.gaplessAlbums,
+    replayGain: settings.replayGain,
+    quality: settings.quality,
+    eqEnabled: settings.eqEnabled,
+    eqGains: [...settings.eqGains],
+    balance: settings.balance,
+    eqProfiles: settings.eqProfiles.map((profile) => ({
+      name: profile.name,
+      gains: [...profile.gains],
+    })),
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+/** Account settings applied to this device (values are checked again here). */
+export function fromPlaybackSettings(
+  current: WebPlayerSettings,
+  playback: PlaybackSettings,
+): WebPlayerSettings {
+  return mergeSettings(current, playback);
+}
+
+export function sameSettings(a: WebPlayerSettings, b: WebPlayerSettings): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }

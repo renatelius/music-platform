@@ -18,7 +18,7 @@ export type AuthState =
   | { status: 'signedIn'; session: Session };
 
 /** Web Locks keep two tabs from rotating the same refresh token at once. */
-function createWebLock(): LockFn | undefined {
+export function createWebLock(): LockFn | undefined {
   if (typeof navigator === 'undefined' || !('locks' in navigator)) return undefined;
   return async <T,>(name: string, run: () => Promise<T>): Promise<T> => {
     let result: { value: T } | undefined;

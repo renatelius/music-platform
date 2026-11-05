@@ -3,6 +3,7 @@ import {
   AddPlaylistItemsResult,
   ArtistDetail,
   AuthResponse,
+  ClearHistoryResult,
   CatalogHome,
   CLIENT_TYPE_HEADER,
   CreatePlaylistRequest as CreatePlaylistRequestInput,
@@ -17,8 +18,11 @@ import {
   PlaylistItemsPage,
   PlaylistList,
   PlaylistMutation,
+  type PlayEvent,
   PlaylistSummary,
   ProblemDetails,
+  RecentPlays,
+  RecordPlaysResult,
   type RegisterRequest,
   ReleaseDetail,
   SavedReleasesPage,
@@ -26,11 +30,17 @@ import {
   type SessionDto,
   SessionList,
   SuggestResults,
+  SyncChangesPage,
+  SyncState,
   TrackDto,
   TrackStream,
   type UpdatePlaylistRequest,
   type UpdateProfileRequest,
+  type UpdateUserSettingsRequest,
   UserDto,
+  UserSettings,
+  UserSettingsMutation,
+  WsTicket,
 } from '@mp/contracts';
 import { z } from 'zod';
 
@@ -97,6 +107,8 @@ interface RequestOptions {
   key?: string;
 }
 type Listener = (session: Session | null) => void;
+/** Told the Idempotency-Key of every library change this client makes (sync skips its own). */
+export type MutationListener = (key: string) => void;
 
 const NoContent = z.undefined();
 /** Refresh slightly before expiry so requests never carry an expired token. */
@@ -137,6 +149,7 @@ export class ApiClient {
   private session: Session | null = null;
   private refreshing: Promise<Session | null> | null = null;
   private readonly listeners = new Set<Listener>();
+  private readonly mutationListeners = new Set<MutationListener>();
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => number;
@@ -156,6 +169,14 @@ export class ApiClient {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
+    };
+  }
+
+  /** Hears the Idempotency-Key of each library change before it is sent. */
+  observeMutations(listener: MutationListener): () => void {
+    this.mutationListeners.add(listener);
+    return () => {
+      this.mutationListeners.delete(listener);
     };
   }
 
@@ -307,11 +328,16 @@ export class ApiClient {
   }
 
   /** Like / save / follow (`saved: true`) or undo it. Repeating either changes nothing. */
-  async setInLibrary(kind: LibraryKind, id: string, saved: boolean): Promise<number> {
+  async setInLibrary(
+    kind: LibraryKind,
+    id: string,
+    saved: boolean,
+    key: string = newKey(),
+  ): Promise<number> {
     const change = await this.authed(
       saved ? 'PUT' : 'DELETE',
       `/library/${kind}/${seg(id)}`,
-      {},
+      { key },
       LibraryChange,
     );
     return change.seq;
@@ -339,16 +365,26 @@ export class ApiClient {
     );
   }
 
-  createPlaylist(input: z.input<typeof CreatePlaylistRequestInput>): Promise<PlaylistMutation> {
-    return this.authed('POST', '/playlists', { body: input, key: newKey() }, PlaylistMutation);
+  /** `key`: pass the same one when sending the same creation again (offline queue). */
+  createPlaylist(
+    input: z.input<typeof CreatePlaylistRequestInput>,
+    key: string = newKey(),
+  ): Promise<PlaylistMutation> {
+    return this.authed('POST', '/playlists', { body: input, key }, PlaylistMutation);
   }
 
   updatePlaylist(id: string, input: UpdatePlaylistRequest): Promise<PlaylistMutation> {
-    return this.authed('PATCH', `/playlists/${seg(id)}`, { body: input }, PlaylistMutation);
+    return this.authed(
+      'PATCH',
+      `/playlists/${seg(id)}`,
+      { body: input, key: newKey() },
+      PlaylistMutation,
+    );
   }
 
   async deletePlaylist(id: string): Promise<number> {
-    return (await this.authed('DELETE', `/playlists/${seg(id)}`, {}, LibraryChange)).seq;
+    return (await this.authed('DELETE', `/playlists/${seg(id)}`, { key: newKey() }, LibraryChange))
+      .seq;
   }
 
   /**
@@ -372,7 +408,7 @@ export class ApiClient {
     const change = await this.authed(
       'PATCH',
       `/playlists/${seg(id)}/items/${seg(itemId)}`,
-      { body: { after } },
+      { body: { after }, key: newKey() },
       LibraryChange,
     );
     return change.seq;
@@ -382,10 +418,53 @@ export class ApiClient {
     const change = await this.authed(
       'DELETE',
       `/playlists/${seg(id)}/items/${seg(itemId)}`,
-      {},
+      { key: newKey() },
       LibraryChange,
     );
     return change.seq;
+  }
+
+  // ------------------------------------------------------------ sync, history, settings (I7b)
+
+  /** The current version of the library (where a fresh client starts). */
+  async syncState(): Promise<number> {
+    return (await this.authed('GET', '/sync/state', {}, SyncState)).seq;
+  }
+
+  /** Changes after version `since`; ask again while `hasMore`. 410 GONE: reload everything. */
+  syncChanges(since: number, limit?: number): Promise<SyncChangesPage> {
+    const params = new URLSearchParams({ since: String(since) });
+    if (limit !== undefined) params.set('limit', String(limit));
+    return this.authed('GET', `/sync/changes?${params.toString()}`, {}, SyncChangesPage);
+  }
+
+  /** One-time ticket for the live channel (`/ws?ticket=`), valid for 30 s. */
+  wsTicket(): Promise<WsTicket> {
+    return this.authed('POST', '/sync/ws-ticket', {}, WsTicket);
+  }
+
+  recordPlays(events: readonly PlayEvent[]): Promise<RecordPlaysResult> {
+    return this.authed('POST', '/history/plays', { body: { events } }, RecordPlaysResult);
+  }
+
+  recentPlays(limit?: number): Promise<RecentPlays> {
+    const query = limit === undefined ? '' : `?limit=${String(limit)}`;
+    return this.authed('GET', `/history/recent${query}`, {}, RecentPlays);
+  }
+
+  clearHistory(): Promise<ClearHistoryResult> {
+    return this.authed('DELETE', '/history', {}, ClearHistoryResult);
+  }
+
+  settings(): Promise<UserSettings> {
+    return this.authed('GET', '/me/settings', {}, UserSettings);
+  }
+
+  updateSettings(
+    input: UpdateUserSettingsRequest,
+    key: string = newKey(),
+  ): Promise<UserSettingsMutation> {
+    return this.authed('PUT', '/me/settings', { body: input, key }, UserSettingsMutation);
   }
 
   // ------------------------------------------------------------ internals
@@ -438,6 +517,9 @@ export class ApiClient {
     options: RequestOptions,
     schema: z.ZodType<T>,
   ): Promise<T> {
+    if (options.key !== undefined) {
+      for (const listener of this.mutationListeners) listener(options.key);
+    }
     let session = this.session;
     if (
       session === null ||

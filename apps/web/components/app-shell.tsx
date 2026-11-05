@@ -21,6 +21,7 @@ import { useI18n } from '../lib/i18n-context';
 import { useLibrary } from '../lib/library-context';
 import { usePlayerState } from '../lib/player-context';
 import { PlayerBar } from './player/player-bar';
+import { SyncBanner } from './sync-banner';
 
 const NAV: readonly {
   href: string;
@@ -165,6 +166,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           />
         </header>
         <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-8 sm:px-8 md:py-12">
+          <SyncBanner />
           {children}
         </main>
       </div>

@@ -5,6 +5,8 @@ export type SavedKind = 'tracks' | 'releases' | 'artists';
 export type ContainsQuery = Record<SavedKind, string[]>;
 export type ContainsFn = (query: ContainsQuery) => Promise<ContainsQuery>;
 export type SetFn = (kind: SavedKind, id: string, saved: boolean) => Promise<unknown>;
+/** A change of this device not yet accepted by the server: it wins over what the server says. */
+export type OverlayFn = (kind: SavedKind, id: string) => boolean | undefined;
 
 /** The API answers at most this many ids of each kind per request. */
 export const CONTAINS_BATCH = 100;
@@ -20,6 +22,9 @@ const keyOf = (kind: SavedKind, id: string) => `${kind}:${id}`;
  */
 export class SavedStore {
   private readonly known = new Map<string, boolean>();
+  /** Changes the server refused (shown as an error on the button until the next try). */
+  private readonly failed = new Set<string>();
+  private overlay: OverlayFn = () => undefined;
   private readonly pending = new Set<string>();
   private queued: ContainsQuery = emptyQuery();
   private flushScheduled = false;
@@ -48,6 +53,22 @@ export class SavedStore {
     return this.known.get(keyOf(kind, id));
   }
 
+  hasFailed(kind: SavedKind, id: string): boolean {
+    return this.failed.has(keyOf(kind, id));
+  }
+
+  setOverlay(overlay: OverlayFn): void {
+    this.overlay = overlay;
+  }
+
+  /** The server refused a change sent later (offline queue): back to `saved`, marked failed. */
+  rejected(kind: SavedKind, id: string, saved: boolean): void {
+    const key = keyOf(kind, id);
+    this.failed.add(key);
+    this.known.set(key, saved);
+    this.emit();
+  }
+
   /** Asks the server about `id` unless its state is known or already asked for. */
   request(kind: SavedKind, id: string): void {
     const key = keyOf(kind, id);
@@ -72,6 +93,7 @@ export class SavedStore {
     const key = keyOf(kind, id);
     const before = this.known.get(key) ?? false;
     const next = !before;
+    if (this.failed.delete(key)) this.emit();
     this.set(key, next);
     try {
       await this.send(kind, id, next);
@@ -135,7 +157,7 @@ export class SavedStore {
         const key = keyOf(kind, id);
         this.pending.delete(key);
         if (answer === null) continue;
-        const value = saved.has(id);
+        const value = this.overlay(kind, id) ?? saved.has(id);
         if (this.known.get(key) !== value) {
           this.known.set(key, value);
           changed = true;

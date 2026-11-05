@@ -85,4 +85,20 @@ describe('SavedStore', () => {
     expect(queries).toHaveLength(2);
     expect(store.get('artists', 'x')).toBe(true);
   });
+
+  it('keeps a waiting change over the server answer and marks a refused one', async () => {
+    const { store, flush } = setup({ tracks: [], releases: [], artists: [] });
+    store.setOverlay((kind, id) => (kind === 'tracks' && id === 'a' ? true : undefined));
+    store.request('tracks', 'a');
+    store.request('tracks', 'b');
+    await flush();
+    expect(store.get('tracks', 'a')).toBe(true);
+    expect(store.get('tracks', 'b')).toBe(false);
+
+    store.rejected('tracks', 'a', false);
+    expect(store.get('tracks', 'a')).toBe(false);
+    expect(store.hasFailed('tracks', 'a')).toBe(true);
+    await store.toggle('tracks', 'a');
+    expect(store.hasFailed('tracks', 'a')).toBe(false);
+  });
 });

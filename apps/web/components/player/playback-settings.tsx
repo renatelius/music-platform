@@ -5,6 +5,7 @@ import type { QualityPreference } from '@mp/player-core';
 import { cn, IconX, SectionCard, SegmentedControl } from '@mp/ui';
 import { type ReactNode, useId, useState } from 'react';
 
+import { HistoryToggle } from '../../app/(app)/library/library-view';
 import { useI18n } from '../../lib/i18n-context';
 import { usePlayer } from '../../lib/player-context';
 import {
@@ -379,6 +380,8 @@ export function PlaybackSettings() {
           </div>
           <EqProfiles settings={settings} update={updateSettings} />
         </div>
+
+        <HistoryToggle />
 
         <p className="text-sm text-fg-muted">{t('playback.hotkeys')}</p>
       </div>

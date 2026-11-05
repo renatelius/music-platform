@@ -10,6 +10,7 @@ import {
   RecentPlays,
   RecordPlaysResult,
   SyncChangesPage,
+  SyncState,
   UserSettings,
   UserSettingsMutation,
   WS_CLOSE,
@@ -255,6 +256,7 @@ describe('synchronization API', () => {
 
   it('requires a signed-in user', async () => {
     for (const [method, path] of [
+      ['GET', '/sync/state'],
       ['GET', '/sync/changes?since=0'],
       ['POST', '/sync/ws-ticket'],
       ['POST', '/history/plays'],
@@ -298,6 +300,7 @@ describe('synchronization API', () => {
     expect(rest.changes.map((change) => change.seq)).toEqual([3]);
     expect(rest).toMatchObject({ seq: 3, hasMore: false });
     expect(await changes(a, 'since=3')).toEqual({ changes: [], seq: 3, hasMore: false });
+    expect(SyncState.parse((await call('GET', '/sync/state')).body)).toEqual({ seq: 3 });
   });
 
   it('answers 410 when the version is unknown or no longer in the log', async () => {

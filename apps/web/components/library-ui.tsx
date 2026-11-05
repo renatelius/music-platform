@@ -36,7 +36,9 @@ export function HeartButton({
   const { t } = useI18n();
   const { store } = useLibrary();
   const liked = useSaved('tracks', trackId) === true;
-  const [failed, setFailed] = useState(false);
+  const [sendFailed, setFailed] = useState(false);
+  // Also a change made offline that the server refused later.
+  const failed = sendFailed || store.hasFailed('tracks', trackId);
   const label = liked ? t('library.unlike', { title }) : t('library.like', { title });
   return (
     <button
@@ -63,7 +65,8 @@ export function SaveButton({ kind, id }: { kind: 'releases' | 'artists'; id: str
   const { store } = useLibrary();
   const saved = useSaved(kind, id);
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [sendFailed, setFailed] = useState(false);
+  const failed = sendFailed || store.hasFailed(kind, id);
   const on = saved === true;
   const label =
     kind === 'releases'

@@ -25,19 +25,24 @@ import {
 } from 'react';
 
 import { useAuth, useSession } from './auth-context';
+import { PlayTracker } from './play-history';
 import {
   decodeSnapshot,
   DEFAULT_WEB_SETTINGS,
   encodeSnapshot,
+  fromPlaybackSettings,
   hotkeyAction,
   type HotkeyTarget,
   mergeSettings,
   parseSettings,
+  sameSettings,
   sessionKey,
   SETTINGS_KEY,
+  toPlaybackSettings,
   toPlayerSettings,
   type WebPlayerSettings,
 } from './player-store';
+import { useSync } from './sync-context';
 import { createTabCoordinator } from './tab-sync';
 
 interface Instance {
@@ -68,6 +73,8 @@ interface PlayerContextValue {
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
 const SAVE_INTERVAL_MS = 5000;
+/** Sliders change settings many times a second: the account gets the value they stop at. */
+const SETTINGS_UPLOAD_DELAY_MS = 800;
 /** Sleep-timer resolution; background tabs may tick only once a second (the timer copes). */
 const SLEEP_TICK_MS = 250;
 
@@ -107,6 +114,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [instance, setInstance] = useState<Instance | null>(null);
   const [settings, setSettings] = useState<WebPlayerSettings>(DEFAULT_WEB_SETTINGS);
   const settingsRef = useRef(settings);
+  const { engine: sync, settings: account } = useSync();
+  const syncRef = useRef(sync);
+  // History on by default; the account setting (and its unsent change) decides.
+  const historyRef = useRef(true);
+  useEffect(() => {
+    syncRef.current = sync;
+    historyRef.current = account?.historyEnabled ?? true;
+  });
 
   useEffect(() => {
     const stored = parseSettings(readStorage(SETTINGS_KEY));
@@ -149,6 +164,22 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     document.addEventListener('visibilitychange', onVisibility);
     const unbindMediaSession = bindMediaSession(player);
 
+    // Listening history (I7b): one report per queue entry, sent through the offline queue.
+    const tracker = new PlayTracker(
+      (event) => {
+        if (historyRef.current) void syncRef.current?.enqueue({ type: 'plays', events: [event] });
+      },
+      Date.now,
+      () => crypto.randomUUID(),
+    );
+    const unsubscribeTracker = player.subscribe((state) => {
+      tracker.update(state);
+    });
+    const endPlay = () => {
+      tracker.flush();
+    };
+    window.addEventListener('pagehide', endPlay);
+
     // One playing tab per account in this browser (B4): starting here pauses the others.
     let unbindTabs: () => void = () => undefined;
     if (typeof BroadcastChannel !== 'undefined') {
@@ -182,7 +213,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       clearInterval(sleepTicker);
       sleep.dispose();
       window.removeEventListener('pagehide', save);
+      window.removeEventListener('pagehide', endPlay);
       document.removeEventListener('visibilitychange', onVisibility);
+      tracker.flush();
+      unsubscribeTracker();
       save();
       unbindMediaSession();
       unbindTabs();
@@ -235,9 +269,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     };
   }, [instance]);
 
-  const updateSettings = useCallback(
-    (patch: Partial<WebPlayerSettings>) => {
-      const next = mergeSettings(settingsRef.current, patch);
+  /** Applies settings on this device only. */
+  const applySettings = useCallback(
+    (next: WebPlayerSettings) => {
       settingsRef.current = next;
       setSettings(next);
       writeStorage(SETTINGS_KEY, JSON.stringify(next));
@@ -249,6 +283,47 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       instance.player.setSettings(toPlayerSettings(next));
     },
     [instance],
+  );
+
+  // The account keeps playback settings for every device (I7b).
+  const uploadTimer = useRef<number | null>(null);
+  const upload = useCallback(() => {
+    uploadTimer.current = null;
+    const playback = toPlaybackSettings(settingsRef.current);
+    if (playback !== null) void syncRef.current?.enqueue({ type: 'settings', playback });
+  }, []);
+  useEffect(
+    () => () => {
+      if (uploadTimer.current === null) return;
+      window.clearTimeout(uploadTimer.current);
+      upload();
+    },
+    [upload],
+  );
+
+  const uploaded = useRef(false);
+  useEffect(() => {
+    if (account === null || sync === null || instance === null) return;
+    if (account.playback === null) {
+      // Never saved in the account: this device's settings become the account's.
+      if (!uploaded.current) {
+        uploaded.current = true;
+        upload();
+      }
+      return;
+    }
+    if (uploadTimer.current !== null) return; // a local change is about to be sent
+    const next = fromPlaybackSettings(settingsRef.current, account.playback);
+    if (!sameSettings(next, settingsRef.current)) applySettings(next);
+  }, [account, sync, instance, applySettings, upload]);
+
+  const updateSettings = useCallback(
+    (patch: Partial<WebPlayerSettings>) => {
+      applySettings(mergeSettings(settingsRef.current, patch));
+      if (uploadTimer.current !== null) window.clearTimeout(uploadTimer.current);
+      uploadTimer.current = window.setTimeout(upload, SETTINGS_UPLOAD_DELAY_MS);
+    },
+    [applySettings, upload],
   );
 
   const playTracks = useCallback(

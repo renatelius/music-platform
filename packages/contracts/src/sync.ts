@@ -56,6 +56,10 @@ export const SyncChangesPage = z.object({
 });
 export type SyncChangesPage = z.infer<typeof SyncChangesPage>;
 
+/** The current version of the user's library: where a fresh client starts syncing from. */
+export const SyncState = z.object({ seq: z.number().int().nonnegative() });
+export type SyncState = z.infer<typeof SyncState>;
+
 /** One-time pass for the live channel: the access token never goes into a URL. */
 export const WsTicket = z.object({
   ticket: z.string().regex(/^[A-Za-z0-9_-]{43}$/),

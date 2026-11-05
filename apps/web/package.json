@@ -19,6 +19,7 @@
     "@mp/design-tokens": "workspace:*",
     "@mp/i18n": "workspace:*",
     "@mp/player-core": "workspace:*",
+    "@mp/sync": "workspace:*",
     "@mp/ui": "workspace:*",
     "next": "catalog:",
     "react": "catalog:",

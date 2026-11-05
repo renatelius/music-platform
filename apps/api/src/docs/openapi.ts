@@ -42,6 +42,7 @@ import {
   SuggestResults,
   SyncChangesPage,
   SyncChangesQuery,
+  SyncState,
   TrackDto,
   TrackStream,
   UpdatePlaylistRequest,
@@ -451,6 +452,14 @@ export const OPERATIONS: readonly Operation[] = [
     auth: true,
     params: itemParams,
     responses: { 200: { description: 'Library version', schema: LibraryChange } },
+  },
+  {
+    method: 'get',
+    path: '/sync/state',
+    tag: 'sync',
+    summary: 'Current version of the library: a fresh client syncs from it',
+    auth: true,
+    responses: { 200: { description: 'Version', schema: SyncState } },
   },
   {
     method: 'get',

@@ -284,6 +284,35 @@ describe('ApiClient library', () => {
     expect(keys[2]).not.toBe(keys[0]);
   });
 
+  it('tells mutation observers the key it sends, and reads the change log', async () => {
+    const keys: string[] = [];
+    const seen: string[] = [];
+    const url = await serve((req, _body, res) => {
+      if (req.url === '/auth/login') {
+        json(res, 200, auth('t'));
+        return;
+      }
+      seen.push(`${req.method ?? ''} ${req.url ?? ''} ${String(req.headers['idempotency-key'])}`);
+      if (req.url === '/sync/state') json(res, 200, { seq: 4 });
+      else if (req.url?.startsWith('/sync/changes') === true)
+        json(res, 200, { changes: [], seq: 4, hasMore: false });
+      else json(res, 200, { seq: 5 });
+    });
+    const client = new ApiClient({ baseUrl: url });
+    client.observeMutations((key) => keys.push(key));
+    await client.login({ email: 'a@b.test', password: 'secret-value' });
+    const key = '0190f000-0000-7000-8000-00000000000a';
+    expect(await client.setInLibrary('tracks', ID, true, key)).toBe(5);
+    expect(keys).toEqual([key]);
+    expect(await client.syncState()).toBe(4);
+    expect(await client.syncChanges(4, 100)).toEqual({ changes: [], seq: 4, hasMore: false });
+    expect(seen).toEqual([
+      `PUT /library/tracks/${ID} ${key}`,
+      'GET /sync/state undefined',
+      'GET /sync/changes?since=4&limit=100 undefined',
+    ]);
+  });
+
   it('pages playlist items and reports duplicates by code', async () => {
     const url = await serve((req, _body, res) => {
       if (req.url === '/auth/login') json(res, 200, auth('t'));
