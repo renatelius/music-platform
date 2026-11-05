@@ -33,7 +33,14 @@ export function clientIp(req: HttpRequest): string {
   return req.ip ?? req.socket.remoteAddress ?? 'unknown';
 }
 
-/** Path without the query string, so tokens in URLs never reach logs or error bodies. */
+/** A signed media link carries its token in the path (`/media/<token>`, ADR-019). */
+const MEDIA_TOKEN_PATH = /\/media\/[^/]+/;
+
+/**
+ * Path without the query string and with media tokens masked, so tokens in URLs never reach
+ * logs, rate-limit answers or error bodies (ADR-022).
+ */
 export function pathOnly(url: string | undefined): string {
-  return (url ?? '/').split('?')[0] ?? '/';
+  const path = (url ?? '/').split('?')[0] ?? '/';
+  return path.replace(MEDIA_TOKEN_PATH, '/media/:token');
 }

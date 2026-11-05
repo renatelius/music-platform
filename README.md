@@ -2,7 +2,7 @@
 
 Монорепозиторий музыкальной платформы **ReMusic**: Web, Windows, Android, iOS на общем backend.
 
-- Требования и решения: `BRIEF.md`, `BRIEF_v2.md`, `TECHNICAL_DECISIONS.md`
+- Требования и решения: `BRIEF_v3.md` (действующее ТЗ, в приоритете), `BRIEF_v2.md`, `BRIEF.md`, `TECHNICAL_DECISIONS.md`
 - Архитектура: `ARCHITECTURE.md` · План: `ROADMAP.md` · Состояние: `PROJECT_STATUS.md`
 - Изменения: `CHANGELOG.md`
 

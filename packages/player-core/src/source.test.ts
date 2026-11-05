@@ -105,7 +105,10 @@ describe('createStreamResolver', () => {
     expect((await r.resolve('t1')).url).toBe('/api/media/opus160.sig');
     await r.resolve('t1');
     expect(calls).toEqual(['t1']);
-    now += 3_600_000 - 30_000;
+    now += 3_600_000 - 150_000;
+    await r.resolve('t1');
+    expect(calls).toEqual(['t1']);
+    now += 60_000;
     await r.resolve('t1');
     expect(calls).toEqual(['t1', 't1']);
     r.invalidate('t1');

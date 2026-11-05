@@ -107,7 +107,8 @@ export interface StreamResolverOptions {
 /** Resolver over the catalog API: one /stream request per track while its links are valid. */
 export function createStreamResolver(options: StreamResolverOptions): SourceResolver {
   const now = options.now ?? Date.now;
-  const margin = options.marginMs ?? 60_000;
+  // Short-lived links (10 min, ADR-022): renew early enough for a preload or a seek.
+  const margin = options.marginMs ?? 120_000;
   const cache = new Map<string, Promise<TrackStream>>();
 
   const fetchFresh = (trackId: string): Promise<TrackStream> => {

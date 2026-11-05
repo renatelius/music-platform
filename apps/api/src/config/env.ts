@@ -64,12 +64,25 @@ const EnvSchema = z.object({
     .default('mp'),
   /** Shorter files are rejected (jingles, broken uploads). */
   INGEST_MIN_DURATION_SEC: z.coerce.number().int().min(1).max(600).default(30),
-  /** Lifetime of signed media links (ADR-019). Players fetch a fresh link when one expires. */
-  MEDIA_URL_TTL_SEC: z.coerce.number().int().min(60).max(86_400).default(3600),
+  /**
+   * Lifetime of signed media links (ADR-019, ADR-022): 10 min by default, at most 1 h.
+   * A link is a bearer token; players renew it shortly before it expires.
+   */
+  MEDIA_URL_TTL_SEC: z.coerce.number().int().min(60).max(3600).default(600),
 });
 
-/** Placeholder secrets from .env.example must never reach production. */
-const PLACEHOLDER_SECRET = /change_me|dev_only/i;
+/** Placeholder secrets from .env.example must never reach production (ADR-022). */
+const PLACEHOLDER_SECRET = /change_me|dev_only|mp_dev_/i;
+
+/** Variables that carry credentials; checked for placeholders in production. */
+const SECRET_VARIABLES = [
+  'AUTH_JWT_SECRET',
+  'DATABASE_URL',
+  'REDIS_URL',
+  'S3_ACCESS_KEY_ID',
+  'S3_SECRET_ACCESS_KEY',
+  'SMTP_PASSWORD',
+] as const;
 
 export interface RateLimitConfig {
   readonly max: number;
@@ -143,10 +156,16 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): A
     throw new ConfigError(`Invalid environment configuration:\n${details}`);
   }
   const e = parsed.data;
-  if (e.NODE_ENV === 'production' && PLACEHOLDER_SECRET.test(e.AUTH_JWT_SECRET)) {
-    throw new ConfigError(
-      'Invalid environment configuration:\n  AUTH_JWT_SECRET: placeholder value in production',
-    );
+  if (e.NODE_ENV === 'production') {
+    const placeholders = SECRET_VARIABLES.filter((name) => {
+      const value = e[name];
+      return value !== undefined && PLACEHOLDER_SECRET.test(value);
+    });
+    if (placeholders.length > 0) {
+      throw new ConfigError(
+        `Invalid environment configuration:\n${placeholders.map((name) => `  ${name}: placeholder value in production`).join('\n')}`,
+      );
+    }
   }
   return {
     env: e.NODE_ENV,

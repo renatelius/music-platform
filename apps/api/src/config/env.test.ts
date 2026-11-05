@@ -29,7 +29,7 @@ describe('loadConfig', () => {
     expect(config.rateLimit).toEqual({ max: 300, windowMs: 60_000, keyPrefix: 'rl' });
     expect(config.media).toEqual({ ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe' });
     expect(config.worker).toEqual({ concurrency: 2, queuePrefix: 'mp', minDurationMs: 30_000 });
-    expect(config.stream).toEqual({ urlTtlSec: 3600 });
+    expect(config.stream).toEqual({ urlTtlSec: 600 });
     expect(config.version).toMatch(/^\d+\.\d+\.\d+/);
   });
 
@@ -66,6 +66,31 @@ describe('loadConfig', () => {
     const placeholder = { ...minimal, AUTH_JWT_SECRET: 'dev_only_jwt_secret_change_me_0123456789' };
     expect(() => loadConfig(placeholder)).not.toThrow();
     expect(() => loadConfig({ ...placeholder, NODE_ENV: 'production' })).toThrow(/placeholder/);
+  });
+
+  it('rejects every placeholder credential from .env.example in production', () => {
+    const dev = {
+      ...minimal,
+      DATABASE_URL: 'postgres://mp:mp_dev_password@127.0.0.1:54320/mp',
+      REDIS_URL: 'redis://:mp_dev_redis@127.0.0.1:63790/0',
+      S3_ACCESS_KEY_ID: 'mp_dev_access',
+      S3_SECRET_ACCESS_KEY: 'mp_dev_secret_change_me',
+    };
+    expect(() => loadConfig(dev)).not.toThrow();
+    const run = () => loadConfig({ ...dev, NODE_ENV: 'production' });
+    expect(run).toThrow(/DATABASE_URL: placeholder/);
+    expect(run).toThrow(/REDIS_URL: placeholder/);
+    expect(run).toThrow(/S3_ACCESS_KEY_ID: placeholder/);
+    expect(run).toThrow(/S3_SECRET_ACCESS_KEY: placeholder/);
+    expect(run).not.toThrow(/mp_dev_password/);
+    expect(() => loadConfig({ ...minimal, NODE_ENV: 'production' })).not.toThrow();
+  });
+
+  it('keeps signed media links short-lived', () => {
+    expect(loadConfig({ ...minimal, MEDIA_URL_TTL_SEC: '900' }).stream.urlTtlSec).toBe(900);
+    expect(() => loadConfig({ ...minimal, MEDIA_URL_TTL_SEC: '86400' })).toThrow(
+      /MEDIA_URL_TTL_SEC/,
+    );
   });
 
   it('reports missing required variables', () => {

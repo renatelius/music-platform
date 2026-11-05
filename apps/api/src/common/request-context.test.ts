@@ -21,4 +21,10 @@ describe('pathOnly', () => {
     expect(pathOnly('/auth/reset?token=secret')).toBe('/auth/reset');
     expect(pathOnly(undefined)).toBe('/');
   });
+
+  it('masks signed media tokens', () => {
+    expect(pathOnly('/media/eyJrIjoidHJh.c2lnbmF0dXJl')).toBe('/media/:token');
+    expect(pathOnly('/api/media/abc.def?x=1')).toBe('/api/media/:token');
+    expect(pathOnly('/catalog/tracks/01a1/stream')).toBe('/catalog/tracks/01a1/stream');
+  });
 });

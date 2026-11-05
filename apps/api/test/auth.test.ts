@@ -16,6 +16,7 @@ interface CallOptions {
   token?: string;
   native?: boolean;
   cookie?: string;
+  headers?: Record<string, string>;
 }
 
 interface CallResult {
@@ -41,6 +42,7 @@ describe('auth', () => {
     if (options.token !== undefined) headers.authorization = `Bearer ${options.token}`;
     if (options.native === true) headers['x-client-type'] = 'native';
     if (options.cookie !== undefined) headers.cookie = options.cookie;
+    Object.assign(headers, options.headers);
     const res = await fetch(`${t.url}${path}`, {
       method,
       headers,
@@ -220,6 +222,17 @@ describe('auth', () => {
     expect(next).not.toBe(cookie);
 
     expect((await call('POST', '/auth/refresh')).status).toBe(401);
+  });
+
+  it('refuses the refresh cookie in cross-site requests (CSRF)', async () => {
+    const { response } = await register();
+    const cookie = cookiePair(refreshCookie(response));
+    const foreign = { origin: 'https://evil.example' };
+    expect((await call('POST', '/auth/refresh', { cookie, headers: foreign })).status).toBe(403);
+    const crossSite = { 'sec-fetch-site': 'cross-site' };
+    expect((await call('POST', '/auth/logout', { cookie, headers: crossSite })).status).toBe(403);
+    const own = { origin: new URL(t.config.webAppUrl).origin };
+    expect((await call('POST', '/auth/refresh', { cookie, headers: own })).status).toBe(200);
   });
 
   it('lists sessions, revokes one and signs out everywhere', async () => {

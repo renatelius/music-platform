@@ -168,8 +168,8 @@ describe('playback links', () => {
       quality: 'lossy',
     });
     const expires = new Date(stream.expiresAt).getTime() - Date.now();
-    expect(expires).toBeGreaterThan(55 * 60_000);
-    expect(expires).toBeLessThanOrEqual(60 * 60_000);
+    expect(expires).toBeGreaterThan(9 * 60_000);
+    expect(expires).toBeLessThanOrEqual(10 * 60_000);
     // The S3 key never reaches the client.
     expect(JSON.stringify(stream)).not.toContain(`tracks/${playable}`);
   });

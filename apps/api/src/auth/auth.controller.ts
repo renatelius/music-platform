@@ -44,6 +44,7 @@ import {
 } from './auth.service.js';
 import { AuthGuard, bearerToken, CurrentAuth } from './auth.guard.js';
 import { clearRefreshCookie, type CookieOptions, readCookie, setRefreshCookie } from './cookies.js';
+import { allowedOrigins, isAllowedCookieRequest } from './csrf.js';
 
 function requestMeta(req: HttpRequest, deviceName?: string): RequestMeta {
   const userAgent = req.headers['user-agent'];
@@ -64,7 +65,12 @@ export class AuthController {
     @Inject(AuthService) private readonly auth: AuthService,
     @Inject(AuthRateLimiter) private readonly limits: AuthRateLimiter,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
-  ) {}
+  ) {
+    this.cookieOrigins = allowedOrigins([config.webAppUrl, ...config.api.corsOrigins]);
+  }
+
+  /** Where the web app runs: the refresh cookie is honoured only from there (CSRF). */
+  private readonly cookieOrigins: ReadonlySet<string>;
 
   private get cookieOptions(): CookieOptions {
     return { secure: this.config.auth.cookieSecure, path: this.config.auth.cookiePath };
@@ -104,7 +110,7 @@ export class AuthController {
   ): Promise<AuthResponse> {
     const meta = requestMeta(req);
     await this.limits.consume('refreshIp', ipKey(meta));
-    const token = body.refreshToken ?? readCookie(req, REFRESH_COOKIE);
+    const token = body.refreshToken ?? this.cookieToken(req);
     if (token === undefined) {
       throw new ApiError('UNAUTHENTICATED', { detail: 'Refresh token is missing.' });
     }
@@ -126,7 +132,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: ServerResponse,
   ): Promise<void> {
     await this.auth.logout(
-      body.refreshToken ?? readCookie(req, REFRESH_COOKIE),
+      body.refreshToken ?? this.cookieToken(req),
       bearerToken(req.headers.authorization),
       requestMeta(req),
     );
@@ -204,6 +210,15 @@ export class AuthController {
     await this.limits.consume('tokenIp', ipKey(meta));
     await this.auth.resetPassword(body, meta);
     clearRefreshCookie(res, this.cookieOptions);
+  }
+
+  /** The refresh cookie, refused for cross-site browser requests (CSRF, ADR-022). */
+  private cookieToken(req: HttpRequest): string | undefined {
+    const token = readCookie(req, REFRESH_COOKIE);
+    if (token !== undefined && !isAllowedCookieRequest(req, this.cookieOrigins)) {
+      throw new ApiError('FORBIDDEN', { detail: 'Cross-site request refused.' });
+    }
+    return token;
   }
 
   /** Browsers get the refresh token as an HttpOnly cookie, native apps in the body. */
