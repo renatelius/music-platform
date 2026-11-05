@@ -17,7 +17,7 @@ import {
   Spinner,
 } from '@mp/ui';
 import Link from 'next/link';
-import { Fragment, type ReactNode, type Ref, useState } from 'react';
+import { Fragment, type ReactNode, type Ref, useRef, useState } from 'react';
 
 import { formatDuration } from '../../lib/catalog';
 import { useI18n } from '../../lib/i18n-context';
@@ -204,16 +204,22 @@ export function TransportControls({ large = false }: { large?: boolean }) {
   );
 }
 
-/** Seek slider with elapsed and total time. The position is applied when the drag ends. */
+/**
+ * Seek slider with elapsed and total time. A pointer drag is applied when it ends; any other
+ * change (arrow keys, a screen reader's increment, a tap) is applied at once — those come
+ * without a pointer-up, and waiting for one froze the slider until focus left it (B6).
+ */
 export function ProgressBar({ className }: { className?: string }) {
   const { t } = useI18n();
   const { player } = usePlayer();
   const state = usePlayerState();
   const position = usePosition();
   const [drag, setDrag] = useState<number | null>(null);
+  const pointerDown = useRef(false);
   const duration = state.current?.track.durationMs ?? 0;
   const value = Math.min(drag ?? position, duration);
   const commit = () => {
+    pointerDown.current = false;
     if (drag === null) return;
     player?.seek(drag);
     setDrag(null);
@@ -235,11 +241,21 @@ export function ProgressBar({ className }: { className?: string }) {
           position: formatDuration(value),
           duration: formatDuration(duration),
         })}
+        onPointerDown={() => {
+          pointerDown.current = true;
+        }}
         onChange={(event) => {
-          setDrag(Number(event.target.value));
+          const target = Number(event.target.value);
+          if (pointerDown.current) {
+            setDrag(target);
+            return;
+          }
+          setDrag(null);
+          player?.seek(target);
         }}
         onPointerUp={commit}
-        onKeyUp={commit}
+        onPointerCancel={commit}
+        onLostPointerCapture={commit}
         onBlur={commit}
         className="h-1.5 min-w-0 flex-1 cursor-pointer accent-accent disabled:cursor-default"
       />

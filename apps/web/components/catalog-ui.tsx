@@ -18,13 +18,15 @@ import {
   IconBars,
   IconDisc,
   IconExternal,
+  IconNext,
   IconPause,
   IconPlay,
+  IconQueue,
   IconShuffle,
   Spinner,
 } from '@mp/ui';
 import Link from 'next/link';
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, type ReactNode, useState } from 'react';
 
 import { artistNames, countLabel, coverColors, formatDuration, releaseYear } from '../lib/catalog';
 import { apiErrorMessage } from '../lib/form-errors';
@@ -221,103 +223,141 @@ export function TrackList({
   const state = usePlayerState();
   const currentId = state.current?.track.id ?? null;
   const active = isActive(state);
+  // Announced to screen readers and shown briefly: adding to the queue changes nothing on screen.
+  const [notice, setNotice] = useState('');
+  const queueAction =
+    'inline-flex size-8 items-center justify-center rounded-full text-fg-muted transition-colors hover:bg-surface-hover hover:text-fg disabled:pointer-events-none disabled:opacity-40';
   return (
-    <ol className="flex flex-col">
-      {tracks.map((track, index) => {
-        const isCurrent = track.id === currentId;
-        const label =
-          isCurrent && active ? t('player.pause') : t('player.playTrack', { title: track.title });
-        return (
-          <li
-            key={track.id}
-            id={`track-${track.id}`}
-            aria-current={isCurrent ? 'true' : undefined}
-            className={cn(
-              'group grid grid-cols-[2rem_minmax(0,1fr)_auto] items-start gap-x-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-surface sm:px-3',
-              isCurrent && 'bg-surface',
-            )}
-          >
-            <button
-              type="button"
-              disabled={player === null}
-              onClick={() => {
-                if (isCurrent) togglePlay();
-                else playTracks(tracks, index);
-              }}
-              aria-label={label}
-              title={label}
-              className="relative inline-flex size-8 items-center justify-center rounded-full text-sm text-fg-subtle tabular-nums transition-colors hover:bg-surface-hover hover:text-fg"
+    <>
+      <p role="status" aria-live="polite" className="sr-only">
+        {notice}
+      </p>
+      <ol className="flex flex-col">
+        {tracks.map((track, index) => {
+          const isCurrent = track.id === currentId;
+          const label =
+            isCurrent && active ? t('player.pause') : t('player.playTrack', { title: track.title });
+          return (
+            <li
+              key={track.id}
+              id={`track-${track.id}`}
+              aria-current={isCurrent ? 'true' : undefined}
+              className={cn(
+                'group grid grid-cols-[2rem_minmax(0,1fr)_auto_auto] items-start gap-x-2 rounded-xl px-2 py-2.5 transition-colors hover:bg-surface sm:gap-x-3 sm:px-3',
+                isCurrent && 'bg-surface',
+              )}
             >
-              <span
-                className={cn(
-                  'group-focus-within:invisible group-hover:invisible',
-                  isCurrent && 'invisible',
-                )}
+              <button
+                type="button"
+                disabled={player === null}
+                onClick={() => {
+                  if (isCurrent) togglePlay();
+                  else playTracks(tracks, index);
+                }}
+                aria-label={label}
+                title={label}
+                className="relative inline-flex size-8 items-center justify-center rounded-full text-sm text-fg-subtle tabular-nums transition-colors hover:bg-surface-hover hover:text-fg"
               >
-                {numbered ? (track.trackNumber ?? index + 1) : index + 1}
-              </span>
-              <span
-                aria-hidden="true"
-                className={cn(
-                  'absolute inset-0 items-center justify-center',
-                  isCurrent
-                    ? 'flex text-accent'
-                    : 'hidden group-focus-within:flex group-hover:flex',
-                )}
-              >
-                {isCurrent && active ? (
-                  <>
-                    <IconBars className="size-4 group-hover:hidden" />
-                    <IconPause className="hidden size-4 group-hover:block" />
-                  </>
-                ) : (
-                  <IconPlay className="size-4" />
-                )}
-              </span>
-            </button>
-            <div className="min-w-0">
-              <p
-                className={cn(
-                  'flex items-center gap-2 font-medium',
-                  isCurrent ? 'text-accent' : 'text-fg',
-                )}
-              >
-                <span className="truncate">{track.title}</span>
-                {track.explicit ? (
-                  <span
-                    title={t('catalog.explicit')}
-                    className="rounded bg-surface px-1 text-[10px] font-semibold text-fg-muted"
-                  >
-                    E
-                  </span>
-                ) : null}
-              </p>
-              <p className="truncate text-sm text-fg-muted">
-                <ArtistLinks artists={track.artists} />
-                {showRelease ? (
-                  <>
-                    {' · '}
-                    <Link
-                      href={`/release/${track.release.id}`}
-                      className="hover:text-fg hover:underline"
+                <span
+                  className={cn(
+                    'group-focus-within:invisible group-hover:invisible',
+                    isCurrent && 'invisible',
+                  )}
+                >
+                  {numbered ? (track.trackNumber ?? index + 1) : index + 1}
+                </span>
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'absolute inset-0 items-center justify-center',
+                    isCurrent
+                      ? 'flex text-accent'
+                      : 'hidden group-focus-within:flex group-hover:flex',
+                  )}
+                >
+                  {isCurrent && active ? (
+                    <>
+                      <IconBars className="size-4 group-hover:hidden" />
+                      <IconPause className="hidden size-4 group-hover:block" />
+                    </>
+                  ) : (
+                    <IconPlay className="size-4" />
+                  )}
+                </span>
+              </button>
+              <div className="min-w-0">
+                <p
+                  className={cn(
+                    'flex items-center gap-2 font-medium',
+                    isCurrent ? 'text-accent' : 'text-fg',
+                  )}
+                >
+                  <span className="truncate">{track.title}</span>
+                  {track.explicit ? (
+                    <span
+                      title={t('catalog.explicit')}
+                      className="rounded bg-surface px-1 text-[10px] font-semibold text-fg-muted"
                     >
-                      {track.release.title}
-                    </Link>
-                  </>
-                ) : null}
-              </p>
-              <LicenseLine license={track.license} />
-            </div>
-            <div className="flex flex-col items-end gap-1 pt-0.5">
-              <span className="text-sm text-fg-muted tabular-nums">
-                {formatDuration(track.durationMs)}
-              </span>
-              <QualityLabel quality={track.quality} />
-            </div>
-          </li>
-        );
-      })}
-    </ol>
+                      E
+                    </span>
+                  ) : null}
+                </p>
+                <p className="truncate text-sm text-fg-muted">
+                  <ArtistLinks artists={track.artists} />
+                  {showRelease ? (
+                    <>
+                      {' · '}
+                      <Link
+                        href={`/release/${track.release.id}`}
+                        className="hover:text-fg hover:underline"
+                      >
+                        {track.release.title}
+                      </Link>
+                    </>
+                  ) : null}
+                </p>
+                <LicenseLine license={track.license} />
+              </div>
+              <div className="flex flex-col items-end gap-1 pt-0.5">
+                <span className="text-sm text-fg-muted tabular-nums">
+                  {formatDuration(track.durationMs)}
+                </span>
+                <QualityLabel quality={track.quality} />
+              </div>
+              {/* B7 (ТЗ v3 §6.2, §6.4 п. 9): queue actions; always visible on touch screens. */}
+              <div className="flex items-center sm:opacity-0 sm:transition-opacity sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
+                <button
+                  type="button"
+                  disabled={player === null}
+                  onClick={() => {
+                    player?.addNext([track]);
+                    setNotice(t('player.addedNext', { title: track.title }));
+                  }}
+                  aria-label={`${t('player.playNext')}: ${track.title}`}
+                  title={t('player.playNext')}
+                  className={queueAction}
+                >
+                  <IconNext className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  disabled={player === null}
+                  onClick={() => {
+                    player?.append([track]);
+                    setNotice(t('player.addedToQueue', { title: track.title }));
+                  }}
+                  aria-label={`${t('player.addToQueue')}: ${track.title}`}
+                  title={t('player.addToQueue')}
+                  className={queueAction}
+                >
+                  <IconQueue className="size-4" />
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </>
   );
 }
 
