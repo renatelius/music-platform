@@ -124,6 +124,21 @@ const ARTIST_JSON = (a: string) =>
 
 const raw = (text: string): SQL => sql.raw(text);
 
+/**
+ * Building blocks for the personal library (I7a): the same visibility and JSON as the catalog,
+ * so a liked or playlisted track shows exactly what its catalog page shows.
+ */
+export const catalogSql = {
+  visible: VISIBLE,
+  releaseVisible: RELEASE_VISIBLE,
+  artistVisible: ARTIST_VISIBLE,
+  artistsOf: ARTISTS_OF,
+  trackJson: TRACK_JSON,
+  releaseJson: RELEASE_JSON,
+  artistJson: ARTIST_JSON,
+  raw,
+} as const;
+
 async function rows<T extends z.ZodType>(
   db: CatalogDb,
   schema: T,

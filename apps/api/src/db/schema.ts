@@ -54,6 +54,8 @@ export const users = pgTable('users', {
   displayName: text('display_name').notNull(),
   locale: text('locale').notNull().default('en'),
   status: userStatus('status').notNull().default('active'),
+  /** Version of the user's library: +1 per change, in user_change_log (I7, ADR-020). */
+  changeSeq: bigint('change_seq', { mode: 'number' }).notNull().default(0),
   createdAt: createdAt(),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()
@@ -376,5 +378,168 @@ export const trackRights = pgTable(
       'track_rights_valid_range',
       sql`${t.validTo} IS NULL OR ${t.validFrom} IS NULL OR ${t.validTo} > ${t.validFrom}`,
     ),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Personal library and playlists (I7a, docs/I7_PLAN.md §4, ADR-020). Kept apart from the
+// official catalog tables (ТЗ v3 §15.3): rows point at catalog tracks, never copy them.
+// ---------------------------------------------------------------------------
+
+export const changeEntity = pgEnum('change_entity', [
+  'track_like',
+  'release_save',
+  'artist_follow',
+  'playlist',
+  'playlist_item',
+  'settings',
+]);
+export const changeOp = pgEnum('change_op', ['upsert', 'delete']);
+
+/**
+ * Every change of a user's library, in order (`seq` = users.change_seq after it). The base of
+ * synchronization: a client asks for the changes after the version it has (I7b).
+ */
+export const userChangeLog = pgTable(
+  'user_change_log',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    seq: bigint('seq', { mode: 'number' }).notNull(),
+    entity: changeEntity('entity').notNull(),
+    entityId: uuid('entity_id').notNull(),
+    op: changeOp('op').notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>(),
+    /** Idempotency-Key of the request, so a client can skip its own changes. */
+    mutationId: uuid('mutation_id'),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.seq] }),
+    index('user_change_log_created_at_idx').on(t.createdAt),
+  ],
+);
+
+/** "Liked tracks". */
+export const libraryTracks = pgTable(
+  'library_tracks',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    trackId: uuid('track_id')
+      .notNull()
+      .references(() => tracks.id, { onDelete: 'cascade' }),
+    likedAt: timestamp('liked_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.trackId] }),
+    index('library_tracks_user_liked_idx').on(t.userId, t.likedAt),
+    index('library_tracks_track_id_idx').on(t.trackId),
+  ],
+);
+
+/** Saved releases. */
+export const libraryReleases = pgTable(
+  'library_releases',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    releaseId: uuid('release_id')
+      .notNull()
+      .references(() => releases.id, { onDelete: 'cascade' }),
+    savedAt: timestamp('saved_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.releaseId] }),
+    index('library_releases_user_saved_idx').on(t.userId, t.savedAt),
+    index('library_releases_release_id_idx').on(t.releaseId),
+  ],
+);
+
+/** Followed artists. */
+export const libraryArtists = pgTable(
+  'library_artists',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    artistId: uuid('artist_id')
+      .notNull()
+      .references(() => artists.id, { onDelete: 'cascade' }),
+    followedAt: timestamp('followed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.artistId] }),
+    index('library_artists_user_followed_idx').on(t.userId, t.followedAt),
+    index('library_artists_artist_id_idx').on(t.artistId),
+  ],
+);
+
+/** A deleted playlist stays as a tombstone (`deleted_at`) so offline clients learn about it. */
+export const playlists = pgTable(
+  'playlists',
+  {
+    id: id(),
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('playlists_owner_id_idx').on(t.ownerId),
+    check('playlists_name_length', sql`char_length(${t.name}) BETWEEN 1 AND 100`),
+    check(
+      'playlists_description_length',
+      sql`${t.description} IS NULL OR char_length(${t.description}) <= 300`,
+    ),
+  ],
+);
+
+/**
+ * Playlist entries. `position` is a fractional-index key compared byte by byte (COLLATE "C"):
+ * inserting between two items never touches the others. The same track may appear twice.
+ */
+export const playlistItems = pgTable(
+  'playlist_items',
+  {
+    id: id(),
+    playlistId: uuid('playlist_id')
+      .notNull()
+      .references(() => playlists.id, { onDelete: 'cascade' }),
+    trackId: uuid('track_id')
+      .notNull()
+      .references(() => tracks.id, { onDelete: 'cascade' }),
+    position: text('position').notNull(),
+    addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique('playlist_items_playlist_position_unique').on(t.playlistId, t.position),
+    index('playlist_items_track_id_idx').on(t.trackId),
+  ],
+);
+
+/** Stored answers of POST requests with an Idempotency-Key, for safe retries (24 h). */
+export const idempotencyKeys = pgTable(
+  'idempotency_keys',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    key: uuid('key').notNull(),
+    /** Method and route the key was used for: another request with it is refused. */
+    route: text('route').notNull(),
+    response: jsonb('response').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.key] }),
+    index('idempotency_keys_created_at_idx').on(t.createdAt),
   ],
 );

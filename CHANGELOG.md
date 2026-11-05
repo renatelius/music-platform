@@ -22,6 +22,14 @@
 - Перемотка и смена трека без щелчков (B5): затухание 30 мс → переход → нарастание; уходящий трек затихает, а не обрывается. Тесты движка `audio-web/src/engine.test.ts` (crossfade при ручной смене трека и перемотке — ТЗ v3 §6.4 п. 4–5) и `player-core` (ручное «Следующий» при crossfade).
 - Баланс левого и правого канала (`StereoPannerNode`, `WebAudioEngine.setBalance`) и сохранённые профили эквалайзера (до 10, с названием) в настройках воспроизведения.
 
+### Библиотека и плейлисты (P2, I7a — серверная часть, `docs/I7_PLAN.md`)
+- Миграция `0005`: `library_tracks`, `library_releases`, `library_artists`, `playlists` (удаление — tombstone), `playlist_items` (порядок — дробные ключи, вставка между треками не трогает остальные), `user_change_log` и `users.change_seq` (версия библиотеки, основа синхронизации I7b), `idempotency_keys` (24 ч).
+- API: `GET/PUT/DELETE /library/tracks|releases|artists`, `POST /library/contains`, `GET/POST /playlists`, `GET/PATCH/DELETE /playlists/:id`, `GET/POST /playlists/:id/items`, `PATCH/DELETE /playlists/:id/items/:itemId`. Каждая мутация — одна транзакция с блокировкой строки пользователя, ответ содержит `seq`; после коммита — `PUBLISH user:<id>` в Redis.
+- Трек, переставший быть доступным, остаётся в «Любимых» и плейлистах с `available: false` (без лицензии и качества). Лайкнуть или добавить можно только доступное.
+- Лимиты (100 000 лайков, 1 000 плейлистов, 10 000 треков) — `LIMIT_EXCEEDED`; повтор трека в плейлисте — `DUPLICATE_TRACKS` с указанием, какие именно.
+- `@mp/contracts`: `library.ts` (схемы и лимиты), коды ошибок `DUPLICATE_TRACKS`, `LIMIT_EXCEEDED`. OpenAPI: теги `library`, `playlists`.
+- Тесты: `apps/api/test/library-api.test.ts` (лайки, пагинация, недоступный трек, 20 параллельных изменений без пропусков в `seq`, идемпотентность, дубли, перестановки, чужой плейлист → 404, журнал изменений), `src/library/fractional.test.ts` (10 000 случайных вставок), `contracts/src/library.test.ts`.
+
 ### Документация
 - `BRIEF_v3.md` — действующее ТЗ (MASTER SPEC 2.0), в приоритете над v2; сопоставление — ADR-021. ROADMAP переведён на порядок P0–P8.
 - `docs/I7_PLAN.md` (ADR-020) — план библиотеки и синхронизации; `docs/qa/I6B_QA_2026-11-05.md` — проверка плеера в браузере (баги B1–B4).

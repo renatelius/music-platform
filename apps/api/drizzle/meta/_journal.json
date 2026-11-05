@@ -36,6 +36,13 @@
       "when": 1793851789207,
       "tag": "0004_true_yellow_claw",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793877830219,
+      "tag": "0005_curved_silhouette",
+      "breakpoints": true
     }
   ]
 }

@@ -41,7 +41,7 @@ describe('API docs', () => {
     // Unauthenticated requests without a body: 401 / 422 / 2xx prove the route exists, 404 not.
     const missing: string[] = [];
     for (const op of OPERATIONS) {
-      const path = op.path.replace('{id}', '00000000-0000-7000-8000-000000000000');
+      const path = op.path.replace(/\{\w+\}/g, '00000000-0000-7000-8000-000000000000');
       const res = await fetch(`${t.url}${path}`, { method: op.method.toUpperCase() });
       if (res.status === 404) missing.push(`${op.method} ${op.path}`);
     }

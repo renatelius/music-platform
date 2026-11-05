@@ -1,19 +1,35 @@
 // OpenAPI 3.1 description of the API, built from the zod contracts (ADR-018).
 // Every route of the API is listed here; test/docs.test.ts fails when one is missing.
 import {
+  AddPlaylistItemsRequest,
+  AddPlaylistItemsResult,
   ArtistDetail,
   AuthResponse,
   CatalogHome,
+  CreatePlaylistRequest,
   EmailTokenRequest,
+  FollowedArtistsPage,
   ForgotPasswordRequest,
   HealthResponse,
   Id,
+  LibraryChange,
+  LibraryContains,
+  LibraryContainsRequest,
+  LikedTracksPage,
   LoginRequest,
+  MovePlaylistItemRequest,
+  PageQuery,
+  PlaylistItemsPage,
+  PlaylistItemsQuery,
+  PlaylistList,
+  PlaylistMutation,
+  PlaylistSummary,
   ProblemDetails,
   RefreshRequest,
   RegisterRequest,
   ReleaseDetail,
   ResetPasswordRequest,
+  SavedReleasesPage,
   SearchQuery,
   SearchResults,
   SessionList,
@@ -21,12 +37,13 @@ import {
   SuggestResults,
   TrackDto,
   TrackStream,
+  UpdatePlaylistRequest,
   UpdateProfileRequest,
   UserDto,
 } from '@mp/contracts';
 import { z } from 'zod';
 
-type Method = 'get' | 'post' | 'patch' | 'delete';
+type Method = 'get' | 'post' | 'put' | 'patch' | 'delete';
 
 interface Operation {
   readonly method: Method;
@@ -44,6 +61,64 @@ interface Operation {
 
 const LiveResponse = z.object({ status: z.literal('ok') });
 const idParam = { id: Id };
+const itemParams = { id: Id, itemId: Id };
+const IDEMPOTENT = ' Send an `Idempotency-Key` (uuid) header to retry safely.';
+const savedKinds = [
+  {
+    path: 'tracks',
+    what: 'track',
+    verb: 'Like',
+    done: 'Liked',
+    undo: 'Unlike',
+    page: LikedTracksPage,
+  },
+  {
+    path: 'releases',
+    what: 'release',
+    verb: 'Save',
+    done: 'Saved',
+    undo: 'Unsave',
+    page: SavedReleasesPage,
+  },
+  {
+    path: 'artists',
+    what: 'artist',
+    verb: 'Follow',
+    done: 'Followed',
+    undo: 'Unfollow',
+    page: FollowedArtistsPage,
+  },
+] as const;
+
+const LIBRARY_OPERATIONS: Operation[] = savedKinds.flatMap((kind): Operation[] => [
+  {
+    method: 'get',
+    path: `/library/${kind.path}`,
+    tag: 'library',
+    summary: `${kind.done} ${kind.what}s, newest first (unavailable ones stay, marked)`,
+    auth: true,
+    query: PageQuery,
+    responses: { 200: { description: 'Page', schema: kind.page } },
+  },
+  {
+    method: 'put',
+    path: `/library/${kind.path}/{id}`,
+    tag: 'library',
+    summary: `${kind.verb} a ${kind.what} (repeating it changes nothing)`,
+    auth: true,
+    params: idParam,
+    responses: { 200: { description: 'Library version', schema: LibraryChange } },
+  },
+  {
+    method: 'delete',
+    path: `/library/${kind.path}/{id}`,
+    tag: 'library',
+    summary: `${kind.undo} a ${kind.what}`,
+    auth: true,
+    params: idParam,
+    responses: { 200: { description: 'Library version', schema: LibraryChange } },
+  },
+]);
 const tokenParam = { token: z.string().regex(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/) };
 
 export const OPERATIONS: readonly Operation[] = [
@@ -261,6 +336,111 @@ export const OPERATIONS: readonly Operation[] = [
     query: SuggestQuery,
     responses: { 200: { description: 'Suggestions', schema: SuggestResults } },
   },
+  ...LIBRARY_OPERATIONS,
+  {
+    method: 'post',
+    path: '/library/contains',
+    tag: 'library',
+    summary: 'Which of these tracks, releases and artists are in my library (≤ 100 each)',
+    auth: true,
+    body: LibraryContainsRequest,
+    responses: { 200: { description: 'The ids that are in the library', schema: LibraryContains } },
+  },
+  {
+    method: 'get',
+    path: '/playlists',
+    tag: 'playlists',
+    summary: 'My playlists, last changed first',
+    auth: true,
+    responses: { 200: { description: 'Playlists', schema: PlaylistList } },
+  },
+  {
+    method: 'post',
+    path: '/playlists',
+    tag: 'playlists',
+    summary: `Create a playlist (at most 1000).${IDEMPOTENT}`,
+    auth: true,
+    body: CreatePlaylistRequest,
+    responses: {
+      201: { description: 'Created', schema: PlaylistMutation },
+      409: {
+        description: 'LIMIT_EXCEEDED, or the key was used for another request',
+        schema: ProblemDetails,
+      },
+    },
+  },
+  {
+    method: 'get',
+    path: '/playlists/{id}',
+    tag: 'playlists',
+    summary: 'A playlist of mine (someone else’s is 404)',
+    auth: true,
+    params: idParam,
+    responses: { 200: { description: 'Playlist', schema: PlaylistSummary } },
+  },
+  {
+    method: 'patch',
+    path: '/playlists/{id}',
+    tag: 'playlists',
+    summary: 'Rename or change the description',
+    auth: true,
+    params: idParam,
+    body: UpdatePlaylistRequest,
+    responses: { 200: { description: 'Updated', schema: PlaylistMutation } },
+  },
+  {
+    method: 'delete',
+    path: '/playlists/{id}',
+    tag: 'playlists',
+    summary: 'Delete a playlist',
+    auth: true,
+    params: idParam,
+    responses: { 200: { description: 'Library version', schema: LibraryChange } },
+  },
+  {
+    method: 'get',
+    path: '/playlists/{id}/items',
+    tag: 'playlists',
+    summary: 'Tracks of a playlist in order (unavailable ones stay, marked)',
+    auth: true,
+    params: idParam,
+    query: PlaylistItemsQuery,
+    responses: { 200: { description: 'Page', schema: PlaylistItemsPage } },
+  },
+  {
+    method: 'post',
+    path: '/playlists/{id}/items',
+    tag: 'playlists',
+    summary:
+      'Add tracks (end by default; `after` = item or null for the start). A track already ' +
+      `there is 409 DUPLICATE_TRACKS unless \`allowDuplicates\`.${IDEMPOTENT}`,
+    auth: true,
+    params: idParam,
+    body: AddPlaylistItemsRequest,
+    responses: {
+      201: { description: 'Added items', schema: AddPlaylistItemsResult },
+      409: { description: 'DUPLICATE_TRACKS or LIMIT_EXCEEDED', schema: ProblemDetails },
+    },
+  },
+  {
+    method: 'patch',
+    path: '/playlists/{id}/items/{itemId}',
+    tag: 'playlists',
+    summary: 'Move an item after another one (null = to the start)',
+    auth: true,
+    params: itemParams,
+    body: MovePlaylistItemRequest,
+    responses: { 200: { description: 'Library version', schema: LibraryChange } },
+  },
+  {
+    method: 'delete',
+    path: '/playlists/{id}/items/{itemId}',
+    tag: 'playlists',
+    summary: 'Remove an item',
+    auth: true,
+    params: itemParams,
+    responses: { 200: { description: 'Library version', schema: LibraryChange } },
+  },
 ];
 
 type JsonSchema = Record<string, unknown>;
@@ -352,6 +532,11 @@ export function buildOpenApi(version: string): JsonSchema {
       { name: 'auth' },
       { name: 'account' },
       { name: 'catalog', description: 'Signed-in users only; only playable tracks are returned' },
+      {
+        name: 'library',
+        description: 'Liked tracks, saved releases, followed artists. Mutations return `seq`',
+      },
+      { name: 'playlists', description: 'The user’s own playlists. Mutations return `seq`' },
     ],
     components: {
       securitySchemes: { bearer: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },

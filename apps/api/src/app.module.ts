@@ -6,6 +6,7 @@ import type { AppConfig } from './config/env.js';
 import { DocsModule } from './docs/docs.module.js';
 import { HealthModule } from './health/health.module.js';
 import { InfraModule } from './infra/infra.module.js';
+import { LibraryModule } from './library/library.module.js';
 
 @Module({})
 export class AppModule {
@@ -17,6 +18,7 @@ export class AppModule {
         HealthModule,
         AuthModule,
         CatalogModule,
+        LibraryModule,
         ...(config.api.docs ? [DocsModule] : []),
       ],
     };
