@@ -8,6 +8,7 @@ import {
   Credits,
   ExternalLink,
   LoadState,
+  PlayActions,
   TrackList,
 } from '../../../../components/catalog-ui';
 import { useAuth } from '../../../../lib/auth-context';
@@ -50,6 +51,9 @@ function Release({ release }: { release: ReleaseDetail }) {
               <ExternalLink href={release.url}>{t('catalog.sourcePage')}</ExternalLink>
             </p>
           ) : null}
+          <div className="mt-5">
+            <PlayActions tracks={release.tracks} />
+          </div>
         </div>
       </header>
 

@@ -14,9 +14,11 @@
   },
   "dependencies": {
     "@mp/api-client": "workspace:*",
+    "@mp/audio-web": "workspace:*",
     "@mp/contracts": "workspace:*",
     "@mp/design-tokens": "workspace:*",
     "@mp/i18n": "workspace:*",
+    "@mp/player-core": "workspace:*",
     "@mp/ui": "workspace:*",
     "next": "catalog:",
     "react": "catalog:",

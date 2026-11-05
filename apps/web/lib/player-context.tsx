@@ -1,0 +1,299 @@
+'use client';
+
+import { ApiRequestError } from '@mp/api-client';
+import { bindMediaSession, browserCanPlay, WebAudioEngine } from '@mp/audio-web';
+import {
+  createStreamResolver,
+  DEFAULT_PLAYER_SETTINGS,
+  Player,
+  type PlayerState,
+  type QueueTrack,
+} from '@mp/player-core';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
+
+import { useAuth, useSession } from './auth-context';
+import {
+  decodeSnapshot,
+  DEFAULT_WEB_SETTINGS,
+  encodeSnapshot,
+  hotkeyAction,
+  type HotkeyTarget,
+  mergeSettings,
+  parseSettings,
+  sessionKey,
+  SETTINGS_KEY,
+  toPlayerSettings,
+  type WebPlayerSettings,
+} from './player-store';
+
+interface Instance {
+  readonly player: Player;
+  readonly engine: WebAudioEngine;
+}
+
+interface PlayerContextValue {
+  /** Null for the first render, until the engine is created on the client. */
+  readonly player: Player | null;
+  readonly settings: WebPlayerSettings;
+  updateSettings: (patch: Partial<WebPlayerSettings>) => void;
+  /**
+   * From a click: starts `tracks` at `index`. `shuffle: true` without an index starts at a
+   * random track.
+   */
+  playTracks: (
+    tracks: readonly QueueTrack[],
+    index?: number,
+    options?: { shuffle?: boolean },
+  ) => void;
+  togglePlay: () => void;
+  jumpTo: (index: number) => void;
+}
+
+const PlayerContext = createContext<PlayerContextValue | null>(null);
+const SAVE_INTERVAL_MS = 5000;
+
+function readStorage(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStorage(key: string, value: string | null): void {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  } catch {
+    // Private mode or a full storage: the session is simply not kept.
+  }
+}
+
+function targetKind(target: EventTarget | null): HotkeyTarget {
+  if (!(target instanceof HTMLElement)) return 'other';
+  if (target.isContentEditable) return 'text';
+  const tag = target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return 'text';
+  if (tag === 'BUTTON' || tag === 'A' || target.getAttribute('role') === 'option') return 'button';
+  return 'other';
+}
+
+/**
+ * One player per signed-in user and tab (ADR-019): Web Audio engine, catalog source resolver,
+ * Media Session, keyboard shortcuts, and the queue saved per account on this device.
+ */
+export function PlayerProvider({ children }: { children: ReactNode }) {
+  const { client } = useAuth();
+  const { user } = useSession();
+  const [instance, setInstance] = useState<Instance | null>(null);
+  const [settings, setSettings] = useState<WebPlayerSettings>(DEFAULT_WEB_SETTINGS);
+  const settingsRef = useRef(settings);
+
+  useEffect(() => {
+    const stored = parseSettings(readStorage(SETTINGS_KEY));
+    settingsRef.current = stored;
+    const engine = new WebAudioEngine();
+    engine.setEqualizer(stored.eqGains);
+    engine.setEqualizerEnabled(stored.eqEnabled);
+    const resolver = createStreamResolver({
+      fetchStream: (id) => client.trackStream(id),
+      mediaUrl: (path) => client.mediaUrl(path),
+      canPlay: browserCanPlay,
+      preference: () => settingsRef.current.quality,
+      isNotFound: (error) =>
+        error instanceof ApiRequestError && (error.status === 404 || error.status === 422),
+    });
+    const player = new Player({ engine, resolver, settings: toPlayerSettings(stored) });
+
+    const key = sessionKey(user.id);
+    const saved = decodeSnapshot(readStorage(key));
+    // Device settings win over the ones saved with the session.
+    if (saved !== null && player.restore(saved)) player.setSettings(toPlayerSettings(stored));
+    const save = () => {
+      writeStorage(key, encodeSnapshot(player.snapshot()));
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') save();
+    };
+    const timer = setInterval(save, SAVE_INTERVAL_MS);
+    window.addEventListener('pagehide', save);
+    document.addEventListener('visibilitychange', onVisibility);
+    const unbindMediaSession = bindMediaSession(player);
+
+    setSettings(stored);
+    setInstance({ player, engine });
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('pagehide', save);
+      document.removeEventListener('visibilitychange', onVisibility);
+      save();
+      unbindMediaSession();
+      player.dispose();
+      setInstance(null);
+    };
+  }, [client, user.id]);
+
+  useEffect(() => {
+    if (instance === null) return;
+    const { player, engine } = instance;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || player.getState().current === null) return;
+      const action = hotkeyAction({
+        key: event.key,
+        shiftKey: event.shiftKey,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+        target: targetKind(event.target),
+      });
+      if (action === null) return;
+      event.preventDefault();
+      switch (action) {
+        case 'toggle':
+          engine.unlock();
+          player.togglePlay();
+          return;
+        case 'back':
+          player.seekBy(-10_000);
+          return;
+        case 'forward':
+          player.seekBy(10_000);
+          return;
+        case 'previous':
+          player.previous();
+          return;
+        case 'next':
+          player.next();
+          return;
+        case 'mute':
+          player.setMuted(!player.getState().muted);
+          return;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [instance]);
+
+  const updateSettings = useCallback(
+    (patch: Partial<WebPlayerSettings>) => {
+      const next = mergeSettings(settingsRef.current, patch);
+      settingsRef.current = next;
+      setSettings(next);
+      writeStorage(SETTINGS_KEY, JSON.stringify(next));
+      if (instance === null) return;
+      instance.engine.setEqualizer(next.eqGains);
+      instance.engine.setEqualizerEnabled(next.eqEnabled);
+      // Also re-prepares the next track, so a new quality applies from the next track on.
+      instance.player.setSettings(toPlayerSettings(next));
+    },
+    [instance],
+  );
+
+  const playTracks = useCallback(
+    (tracks: readonly QueueTrack[], index?: number, options?: { shuffle?: boolean }) => {
+      if (instance === null || tracks.length === 0) return;
+      instance.engine.unlock();
+      const shuffle = options?.shuffle;
+      if (shuffle !== undefined) instance.player.setShuffle(shuffle);
+      const start = index ?? (shuffle === true ? Math.floor(Math.random() * tracks.length) : 0);
+      instance.player.playTracks(tracks, start);
+    },
+    [instance],
+  );
+
+  const togglePlay = useCallback(() => {
+    if (instance === null) return;
+    instance.engine.unlock();
+    instance.player.togglePlay();
+  }, [instance]);
+
+  const jumpTo = useCallback(
+    (index: number) => {
+      if (instance === null) return;
+      instance.engine.unlock();
+      instance.player.jumpTo(index);
+    },
+    [instance],
+  );
+
+  const value = useMemo(
+    () => ({
+      player: instance?.player ?? null,
+      settings,
+      updateSettings,
+      playTracks,
+      togglePlay,
+      jumpTo,
+    }),
+    [instance, settings, updateSettings, playTracks, togglePlay, jumpTo],
+  );
+  return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;
+}
+
+export function usePlayer(): PlayerContextValue {
+  const value = useContext(PlayerContext);
+  if (value === null) throw new Error('usePlayer must be used inside PlayerProvider');
+  return value;
+}
+
+const IDLE_STATE: PlayerState = {
+  status: 'idle',
+  current: null,
+  index: -1,
+  queue: [],
+  shuffle: false,
+  repeat: 'off',
+  volume: 1,
+  muted: false,
+  source: null,
+  buffering: false,
+  error: null,
+  settings: DEFAULT_PLAYER_SETTINGS,
+};
+
+export function usePlayerState(): PlayerState {
+  const { player } = usePlayer();
+  const subscribe = useCallback(
+    (onChange: () => void) => (player === null ? () => undefined : player.subscribe(onChange)),
+    [player],
+  );
+  const getSnapshot = useCallback(() => player?.getState() ?? IDLE_STATE, [player]);
+  return useSyncExternalStore(subscribe, getSnapshot, () => IDLE_STATE);
+}
+
+/** True while sound plays or is about to (the play button shows «pause»). */
+export function isActive(state: PlayerState): boolean {
+  return state.status === 'playing' || state.status === 'loading';
+}
+
+/** Playback position in ms, refreshed four times a second while playing. */
+export function usePosition(): number {
+  const { player } = usePlayer();
+  const state = usePlayerState();
+  const [position, setPosition] = useState(0);
+  useEffect(() => {
+    if (player === null) return;
+    const update = () => {
+      setPosition(player.positionMs());
+    };
+    update();
+    if (state.status !== 'playing') return;
+    const timer = setInterval(update, 250);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [player, state]);
+  return position;
+}

@@ -335,6 +335,9 @@ importers:
       '@mp/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@mp/audio-web':
+        specifier: workspace:*
+        version: link:../../packages/audio-web
       '@mp/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -344,6 +347,9 @@ importers:
       '@mp/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
+      '@mp/player-core':
+        specifier: workspace:*
+        version: link:../../packages/player-core
       '@mp/ui':
         specifier: workspace:*
         version: link:../../packages/ui

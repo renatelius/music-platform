@@ -17,6 +17,8 @@ import { type ComponentType, type ReactNode, useState } from 'react';
 
 import { useAuth, useSession } from '../lib/auth-context';
 import { useI18n } from '../lib/i18n-context';
+import { usePlayerState } from '../lib/player-context';
+import { PlayerBar } from './player/player-bar';
 
 const NAV: readonly {
   href: string;
@@ -37,6 +39,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { user } = useSession();
   const pathname = usePathname();
   const [signingOut, setSigningOut] = useState(false);
+  const hasPlayer = usePlayerState().current !== null;
 
   const signOut = () => {
     setSigningOut(true);
@@ -46,7 +49,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-dvh md:grid md:grid-cols-[16rem_minmax(0,1fr)]">
-      <aside className="sticky top-0 hidden h-dvh flex-col border-r border-border bg-bg-elevated px-3 py-5 md:flex">
+      <aside
+        className={cn(
+          'sticky top-0 hidden h-dvh flex-col border-r border-border bg-bg-elevated px-3 py-5 md:flex',
+          hasPlayer && 'pb-27',
+        )}
+      >
         <Link href="/" className="rounded-xl px-3 py-1.5">
           <Logo />
         </Link>
@@ -87,7 +95,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex min-h-dvh min-w-0 flex-col pb-20 md:pb-0">
+      <div
+        className={cn(
+          'flex min-h-dvh min-w-0 flex-col',
+          hasPlayer ? 'pb-40 md:pb-24' : 'pb-20 md:pb-0',
+        )}
+      >
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-bg/85 px-5 py-3 backdrop-blur-md md:hidden">
           <Link href="/">
             <Logo />
@@ -128,6 +141,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           );
         })}
       </nav>
+
+      <PlayerBar />
     </div>
   );
 }

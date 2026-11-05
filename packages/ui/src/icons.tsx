@@ -115,6 +115,127 @@ export const IconExternal = (p: IconProps) => (
     <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
   </Svg>
 );
+export const IconPlay = (p: IconProps) => (
+  <Svg {...p}>
+    <path
+      d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z"
+      fill="currentColor"
+      stroke="none"
+    />
+  </Svg>
+);
+export const IconPause = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="6" y="5" width="4" height="14" rx="1.2" fill="currentColor" stroke="none" />
+    <rect x="14" y="5" width="4" height="14" rx="1.2" fill="currentColor" stroke="none" />
+  </Svg>
+);
+export const IconNext = (p: IconProps) => (
+  <Svg {...p}>
+    <path
+      d="M6 6.5v11a.8.8 0 0 0 1.2.7l8.3-5.5a.8.8 0 0 0 0-1.4L7.2 5.8A.8.8 0 0 0 6 6.5Z"
+      fill="currentColor"
+      stroke="none"
+    />
+    <path d="M18 6v12" />
+  </Svg>
+);
+export const IconPrevious = (p: IconProps) => (
+  <Svg {...p}>
+    <path
+      d="M18 6.5v11a.8.8 0 0 1-1.2.7l-8.3-5.5a.8.8 0 0 1 0-1.4l8.3-5.5A.8.8 0 0 1 18 6.5Z"
+      fill="currentColor"
+      stroke="none"
+    />
+    <path d="M6 6v12" />
+  </Svg>
+);
+export const IconShuffle = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 7h3.5a4 4 0 0 1 3.2 1.6l4.6 6.8A4 4 0 0 0 17.5 17H21M3 17h3.5a4 4 0 0 0 3.2-1.6l.8-1.2M14.3 8.6l.2-.2A4 4 0 0 1 17.5 7H21M18 4l3 3-3 3M18 14l3 3-3 3" />
+  </Svg>
+);
+export const IconRepeat = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m17 3 3 3-3 3M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 0 1-3 3H4" />
+  </Svg>
+);
+export const IconRepeatOne = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m17 3 3 3-3 3M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 0 1-3 3H4" />
+    <path d="M11 10.5 12.5 9.5v5" />
+  </Svg>
+);
+export const IconVolume = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 9.5h3l4.5-4v13L7 14.5H4z" />
+    <path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />
+  </Svg>
+);
+export const IconVolumeMute = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 9.5h3l4.5-4v13L7 14.5H4z" />
+    <path d="m16 9.5 5 5M21 9.5l-5 5" />
+  </Svg>
+);
+export const IconQueue = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 6h12M4 12h12M4 18h7" />
+    <path d="M16 14.5v6l4.5-3z" fill="currentColor" />
+  </Svg>
+);
+export const IconChevronDown = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Svg>
+);
+export const IconChevronUp = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m6 15 6-6 6 6" />
+  </Svg>
+);
+export const IconX = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 6l12 12M18 6 6 18" />
+  </Svg>
+);
+export const IconBack10 = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4.5 12A7.5 7.5 0 1 0 6.7 6.7M4.5 3.5v4h4" />
+    <text
+      x="12.5"
+      y="15.2"
+      fontSize="7"
+      fontWeight="700"
+      textAnchor="middle"
+      fill="currentColor"
+      stroke="none"
+    >
+      10
+    </text>
+  </Svg>
+);
+export const IconForward10 = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M19.5 12A7.5 7.5 0 1 1 17.3 6.7M19.5 3.5v4h-4" />
+    <text
+      x="11.5"
+      y="15.2"
+      fontSize="7"
+      fontWeight="700"
+      textAnchor="middle"
+      fill="currentColor"
+      stroke="none"
+    >
+      10
+    </text>
+  </Svg>
+);
+export const IconBars = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 18v-7M10 18V6M14 18v-9M18 18v-5" />
+  </Svg>
+);
 export const IconSparkle = (p: IconProps) => (
   <Svg {...p}>
     <path d="M12 3.5 13.8 9 19.5 10.5 13.8 12 12 17.5 10.2 12 4.5 10.5 10.2 9Z" />

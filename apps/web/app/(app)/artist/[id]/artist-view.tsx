@@ -7,6 +7,7 @@ import {
   Credits,
   ExternalLink,
   LoadState,
+  PlayActions,
   ReleaseGrid,
   SectionTitle,
   TrackList,
@@ -45,6 +46,9 @@ function Artist({ artist }: { artist: ArtistDetail }) {
               <ExternalLink href={artist.url}>{t('catalog.sourcePage')}</ExternalLink>
             </p>
           ) : null}
+          <div className="mt-5 flex justify-center sm:justify-start">
+            <PlayActions tracks={artist.tracks} />
+          </div>
         </div>
       </header>
 

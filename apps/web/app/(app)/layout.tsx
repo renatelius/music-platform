@@ -4,11 +4,14 @@ import type { ReactNode } from 'react';
 
 import { AppShell } from '../../components/app-shell';
 import { RequireAuth } from '../../components/guards';
+import { PlayerProvider } from '../../lib/player-context';
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <RequireAuth>
-      <AppShell>{children}</AppShell>
+      <PlayerProvider>
+        <AppShell>{children}</AppShell>
+      </PlayerProvider>
     </RequireAuth>
   );
 }

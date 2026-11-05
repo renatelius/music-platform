@@ -244,6 +244,14 @@ export class WebAudioEngine implements AudioEngine {
     this.ctx = null;
   }
 
+  /**
+   * Call from a click or key handler: creates and resumes the AudioContext inside the user
+   * gesture, so playback that starts after a network request is not blocked by autoplay rules.
+   */
+  unlock(): void {
+    void this.context().resume();
+  }
+
   // ---------------------------------------------------------------- equalizer
 
   /** Ten gains in dB (31 Hz … 16 kHz), ±12 dB. */

@@ -8,6 +8,7 @@ import { useState } from 'react';
 import {
   ArtistGrid,
   LoadState,
+  PlayActions,
   ReleaseGrid,
   SectionTitle,
   TrackList,
@@ -81,7 +82,11 @@ function CatalogSections({ home }: { home: CatalogHome }) {
         <ReleaseGrid releases={home.recentReleases} />
       </section>
       <section className="mt-12">
-        <SectionTitle title={t('home.daily.title')} subtitle={t('home.daily.subtitle')} />
+        <SectionTitle
+          title={t('home.daily.title')}
+          subtitle={t('home.daily.subtitle')}
+          action={<PlayActions tracks={home.dailyTracks} size="sm" />}
+        />
         <TrackList tracks={home.dailyTracks} showRelease />
       </section>
       <section className="mt-12">

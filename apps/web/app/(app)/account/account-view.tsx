@@ -27,6 +27,7 @@ import {
   useState,
 } from 'react';
 
+import { PlaybackSettings } from '../../../components/player/playback-settings';
 import { useAuth, useSession } from '../../../lib/auth-context';
 import { describeDevice, isMobileDevice } from '../../../lib/device';
 import { apiErrorMessage, type FieldErrors, validationErrors } from '../../../lib/form-errors';
@@ -381,6 +382,7 @@ export function AccountView() {
         <ProfileCard />
         <div className="flex flex-col gap-6">
           <AppearanceCard />
+          <PlaybackSettings />
           <SignOutEverywhereCard />
         </div>
         <SessionsCard />
