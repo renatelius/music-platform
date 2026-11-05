@@ -25,14 +25,19 @@ function Save-Report {
   [System.IO.File]::WriteAllLines($reportPath, $report, (New-Object System.Text.UTF8Encoding($false)))
 }
 
-function Run-Step([string]$Name, [scriptblock]$Block, [switch]$Critical) {
+# -Live prints output while the step runs (long steps); otherwise it is printed at the end.
+function Run-Step([string]$Name, [scriptblock]$Block, [switch]$Critical, [switch]$Live) {
   Write-Host ''
   Write-Host "=== $Name ===" -ForegroundColor Cyan
   $sw = [System.Diagnostics.Stopwatch]::StartNew()
   $global:LASTEXITCODE = 0
   $lines = @()
   try {
-    $lines = & $Block 2>&1 | ForEach-Object { "$_" }
+    if ($Live) {
+      $lines = & $Block 2>&1 | ForEach-Object { $l = "$_"; Write-Host "  $l"; $l }
+    } else {
+      $lines = & $Block 2>&1 | ForEach-Object { "$_" }
+    }
     $code = $LASTEXITCODE
   } catch {
     $lines += "EXCEPTION: $($_.Exception.Message)"
@@ -40,7 +45,7 @@ function Run-Step([string]$Name, [scriptblock]$Block, [switch]$Critical) {
   }
   $sw.Stop()
   if ($null -eq $code) { $code = 0 }
-  foreach ($l in $lines) { Write-Host "  $l" }
+  if (-not $Live) { foreach ($l in $lines) { Write-Host "  $l" } }
   $status = if ($code -eq 0) { 'PASS' } else { 'FAIL' }
   $color  = if ($code -eq 0) { 'Green' } else { 'Red' }
   $sec = [math]::Round($sw.Elapsed.TotalSeconds, 1)
@@ -142,6 +147,9 @@ Run-Step 'Format code (prettier --write)' { & pnpm format }
 Run-Step 'Lint + typecheck + test + build' { & pnpm check }
 Run-Step 'Migrate development database' { & pnpm db:migrate }
 Run-Step 'Audio pipeline smoke test (synthetic file -> renditions in S3)' { & pnpm --filter @mp/api worker:smoke }
+# First run downloads several GB from Hugging Face (audio is read per row group, ~0.3-0.5 GB each)
+# and takes a while; once the catalog has 300 ready tracks it only verifies them (seconds).
+Run-Step 'Test catalog: FMA import, 300 tracks under open licenses (check only when complete)' -Live { & pnpm catalog:import }
 
 # Smoke tests start their own servers. If dev.bat is running, the ports are taken and the
 # requests would reach the dev servers instead, so a passing result would prove nothing.

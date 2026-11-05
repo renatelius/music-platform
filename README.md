@@ -54,9 +54,11 @@
 | `pnpm dev:api` | API в режиме разработки: http://127.0.0.1:4000 (`/health`, `/health/live`) |
 | `pnpm db:generate` | создать SQL-миграцию из `apps/api/src/db/schema.ts` |
 | `pnpm db:migrate` | применить миграции к dev-БД |
+| `pnpm catalog:import` | тестовый каталог: 300 треков FMA под открытыми лицензиями (повторный запуск безопасен; `--help`, `--dry-run`, `--verify`) |
 | `pnpm test` | unit-тесты |
 | `pnpm format` | форматирование (Prettier) |
 | `push-to-github.bat "сообщение"` | commit + push |
+| `catalog.bat` | тестовый каталог: меню «пробный запуск / импорт / проверка» (то же, что `pnpm catalog:import`) |
 
 ## Структура
 
@@ -75,6 +77,8 @@ packages/
   i18n/          переводы (en, ru) и определение языка
   api-client/    типизированный клиент API для всех платформ
 infrastructure/docker/   локальная инфраструктура (docker compose)
+tools/
+  catalog-import/ импорт тестового каталога FMA (Hugging Face → S3 → конвейер аудио)
 scripts/       служебные скрипты
 docs/          исследование и документация
 ```

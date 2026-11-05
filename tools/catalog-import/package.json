@@ -1,0 +1,28 @@
+{
+  "name": "@mp/catalog-import",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Imports the test catalog: full-length FMA tracks under open licenses (ADR-017)",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node --env-file-if-exists=../../.env dist/cli.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mp/api": "workspace:*",
+    "@mp/contracts": "workspace:*",
+    "hyparquet": "^1.12.1",
+    "hyparquet-compressors": "^1.1.1",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@mp/config": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

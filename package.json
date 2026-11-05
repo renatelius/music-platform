@@ -20,6 +20,7 @@
     "dev:web": "pnpm --filter @mp/web dev",
     "db:generate": "pnpm --filter @mp/api db:generate",
     "db:migrate": "pnpm --filter @mp/api db:migrate",
+    "catalog:import": "turbo run build --filter=@mp/catalog-import --output-logs=errors-only && pnpm --filter @mp/catalog-import start",
     "infra:up": "docker compose -f infrastructure/docker/compose.yaml --env-file .env up -d --wait --wait-timeout 180",
     "infra:init": "docker compose -f infrastructure/docker/compose.yaml --env-file .env --profile init run --rm s3-init",
     "infra:down": "docker compose -f infrastructure/docker/compose.yaml --env-file .env down",

@@ -48,6 +48,7 @@ install-log.txt
 # Tooling / local reports
 .turbo/
 setup-report.txt
+catalog-import.log
 *.local
 relocate-log.txt
 

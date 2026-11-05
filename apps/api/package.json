@@ -4,6 +4,40 @@
   "private": true,
   "description": "Backend API: modular monolith on NestJS (REST + WebSocket)",
   "type": "module",
+  "exports": {
+    "./catalog": {
+      "types": "./dist/catalog/ingest.d.ts",
+      "default": "./dist/catalog/ingest.js"
+    },
+    "./config": {
+      "types": "./dist/config/env.d.ts",
+      "default": "./dist/config/env.js"
+    },
+    "./db": {
+      "types": "./dist/db/client.d.ts",
+      "default": "./dist/db/client.js"
+    },
+    "./infra": {
+      "types": "./dist/infra/clients.d.ts",
+      "default": "./dist/infra/clients.js"
+    },
+    "./media": {
+      "types": "./dist/media/index.d.ts",
+      "default": "./dist/media/index.js"
+    },
+    "./migrate": {
+      "types": "./dist/db/migrate.d.ts",
+      "default": "./dist/db/migrate.js"
+    },
+    "./pipeline": {
+      "types": "./dist/worker/pipeline.d.ts",
+      "default": "./dist/worker/pipeline.js"
+    },
+    "./storage": {
+      "types": "./dist/worker/storage.d.ts",
+      "default": "./dist/worker/storage.js"
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsc -p tsconfig.build.json && node scripts/dev.mjs",
